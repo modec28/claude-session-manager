@@ -6,6 +6,7 @@ pub struct ProjectInfo {
     pub dir_name: String,
     pub display_path: String,
     pub session_count: usize,
+    pub archived_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -2,6 +2,21 @@
 
 [한국어](docs/kr/CHANGELOG.md)
 
+## [0.1.1] - 2026-04-16
+
+### Fixed
+- Archive now uses session digest instead of file reading (supports large sessions like 19MB team agent sessions)
+- Archive uses direct CLI execution instead of shell passthrough (fixes single-quote/special character failures)
+- Sidebar no longer loses sessions after archive or delete (removed aggressive cache clearing)
+- Empty system sessions (team agent stubs) filtered from sidebar
+- Removed "Summarize" keyword from archive prompt to prevent skill trigger
+- Added `--no-session-persistence` to prevent archive byproduct sessions
+- Delete confirmation also accepts `n` key to cancel
+
+### Added
+- Keyboard shortcuts: `a` (archive), `d` (delete), `y` (confirm), `n`/`Escape` (cancel)
+- Sidebar keyboard navigation: arrow keys to move, Enter/Right to expand/select, Left to collapse
+
 ## [0.1.0] - 2026-04-16
 
 First release.
