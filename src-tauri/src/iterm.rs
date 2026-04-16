@@ -90,3 +90,60 @@ pub fn new_session(cwd: &str) -> Result<(), String> {
     preflight_check()?;
     run_applescript(cwd, "claude")
 }
+
+fn resolve_claude_path() -> Result<String, String> {
+    let home = dirs::home_dir().unwrap_or_default();
+    let local_bin = home.join(".local/bin/claude");
+    if local_bin.exists() {
+        return Ok(local_bin.to_string_lossy().to_string());
+    }
+
+    for path in CLAUDE_KNOWN_PATHS {
+        if Path::new(path).exists() {
+            return Ok(path.to_string());
+        }
+    }
+
+    let output = Command::new("/bin/zsh")
+        .arg("-l")
+        .arg("-c")
+        .arg("which claude")
+        .output()
+        .map_err(|err| format!("Failed to resolve claude path: {err}"))?;
+
+    if output.status.success() {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !path.is_empty() {
+            return Ok(path);
+        }
+    }
+
+    Err("Claude CLI not found".to_string())
+}
+
+pub fn run_claude_headless(cwd: &str, prompt: &str) -> Result<String, String> {
+    let claude_path = resolve_claude_path()?;
+
+    let output = Command::new("/bin/zsh")
+        .arg("-l")
+        .arg("-c")
+        .arg(format!(
+            "cd {} && {} --print {}",
+            shell_escape(cwd),
+            shell_escape(&claude_path),
+            shell_escape(prompt),
+        ))
+        .output()
+        .map_err(|err| format!("Failed to run claude: {err}"))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(format!("Claude exited with error: {stderr}"))
+    }
+}
+
+fn shell_escape(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}

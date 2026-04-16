@@ -445,3 +445,62 @@ pub fn delete_session(project_dir_name: &str, session_id: &str) -> Result<(), St
 
     Ok(())
 }
+
+const PENDING_DELETE_DIR: &str = ".claude/session-pending-delete";
+
+pub fn queue_for_deletion(
+    project_dir_name: &str,
+    session_id: &str,
+    session_title: &str,
+    cwd: &str,
+) -> Result<(), String> {
+    let home = dirs::home_dir().ok_or("Failed to resolve home directory")?;
+    let pending_dir = home.join(PENDING_DELETE_DIR);
+
+    if !pending_dir.exists() {
+        fs::create_dir_all(&pending_dir)
+            .map_err(|err| format!("Failed to create pending dir: {err}"))?;
+    }
+
+    let pending = serde_json::json!({
+        "sessionId": session_id,
+        "projectDirName": project_dir_name,
+        "title": session_title,
+        "cwd": cwd,
+        "queuedAt": chrono::Utc::now().to_rfc3339(),
+    });
+
+    let filepath = pending_dir.join(format!("{session_id}.json"));
+    let content = serde_json::to_string_pretty(&pending)
+        .map_err(|err| format!("Failed to serialize pending entry: {err}"))?;
+    fs::write(&filepath, content)
+        .map_err(|err| format!("Failed to write pending entry: {err}"))?;
+
+    Ok(())
+}
+
+pub fn has_archive(session_id: &str) -> Result<bool, String> {
+    let home = dirs::home_dir().ok_or("Failed to resolve home directory")?;
+    let archives_dir = home.join(".claude/session-archives");
+
+    if !archives_dir.exists() {
+        return Ok(false);
+    }
+
+    let entries = fs::read_dir(&archives_dir)
+        .map_err(|err| format!("Failed to read archives: {err}"))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        if let Ok(content) = fs::read_to_string(&path) {
+            if content.contains(session_id) {
+                return Ok(true);
+            }
+        }
+    }
+
+    Ok(false)
+}

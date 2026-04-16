@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { fetchSession, resumeInIterm, deleteSession } from "../../api";
+import {
+  fetchSession,
+  resumeInIterm,
+  deleteSession,
+  archiveAndDelete,
+} from "../../api";
 import type { ConversationMessage, SelectedSession } from "../../types";
 import MessageBubble from "./MessageBubble";
 
@@ -47,12 +52,31 @@ export default function SessionView({
   };
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [archiving, setArchiving] = useState(false);
 
   const handleDeleteClick = () => {
     setConfirmingDelete(true);
   };
 
-  const handleDeleteConfirm = async () => {
+  const handleArchiveThenDelete = async () => {
+    setConfirmingDelete(false);
+    setArchiving(true);
+    setErrorMessage(null);
+    try {
+      await archiveAndDelete(
+        selected.projectDirName,
+        selected.sessionId,
+        selected.cwd || "/",
+      );
+      onSessionDeleted();
+    } catch (error) {
+      setErrorMessage(String(error));
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleForceDelete = async () => {
     setConfirmingDelete(false);
     setErrorMessage(null);
     try {
@@ -145,13 +169,32 @@ export default function SessionView({
           >
             Resume in iTerm2
           </button>
+          {archiving ? (
+            <span
+              className="px-3 py-1 rounded text-xs font-medium"
+              style={{
+                background: "var(--bg-surface)",
+                color: "var(--accent-peach)",
+              }}
+            >
+              Archiving...
+            </span>
+          ) : (
+            <button
+              onClick={handleArchiveThenDelete}
+              className="px-3 py-1 rounded text-xs font-medium transition-opacity hover:opacity-80"
+              style={{
+                background: "var(--accent-blue)",
+                color: "var(--bg-primary)",
+              }}
+            >
+              Archive
+            </button>
+          )}
           {confirmingDelete ? (
             <div className="flex items-center gap-1">
-              <span className="text-[10px]" style={{ color: "var(--accent-red)" }}>
-                Delete?
-              </span>
               <button
-                onClick={handleDeleteConfirm}
+                onClick={handleForceDelete}
                 className="px-2 py-1 rounded text-[10px] font-bold transition-opacity hover:opacity-80"
                 style={{
                   background: "var(--accent-red)",

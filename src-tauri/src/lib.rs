@@ -1,12 +1,15 @@
+mod archive;
 mod buddy;
 mod iterm;
 mod models;
 mod session;
 mod titles;
 
+use archive::ArchiveEntry;
 use buddy::BuddyState;
 use models::{ConversationMessage, ProjectInfo, SessionInfo};
 use std::collections::HashMap;
+use std::process::Command;
 
 #[tauri::command]
 fn list_projects() -> Result<Vec<ProjectInfo>, String> {
@@ -42,6 +45,21 @@ fn delete_session(project_dir_name: String, session_id: String) -> Result<(), St
 }
 
 #[tauri::command]
+fn queue_deletion(
+    project_dir_name: String,
+    session_id: String,
+    session_title: String,
+    cwd: String,
+) -> Result<(), String> {
+    session::queue_for_deletion(&project_dir_name, &session_id, &session_title, &cwd)
+}
+
+#[tauri::command]
+fn check_archive_exists(session_id: String) -> Result<bool, String> {
+    session::has_archive(&session_id)
+}
+
+#[tauri::command]
 fn get_custom_titles() -> Result<HashMap<String, String>, String> {
     titles::all_custom_titles()
 }
@@ -56,6 +74,161 @@ fn refresh_buddy() -> Result<BuddyState, String> {
     buddy::refresh_buddy()
 }
 
+#[tauri::command]
+fn running_sessions() -> Result<Vec<String>, String> {
+    let output = Command::new("ps")
+        .args(["aux"])
+        .output()
+        .map_err(|err| format!("Failed to run ps: {err}"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut session_ids: Vec<String> = Vec::new();
+    let uuid_len = 36;
+
+    for line in stdout.lines() {
+        for flag in ["--resume ", "-r ", "--session-id "] {
+            if let Some(pos) = line.find(flag) {
+                let after = &line[pos + flag.len()..];
+                let id = after.split_whitespace().next().unwrap_or("");
+                if id.len() >= uuid_len {
+                    session_ids.push(id.to_string());
+                }
+            }
+        }
+    }
+
+    let home = dirs::home_dir().unwrap_or_default();
+    let projects_dir = home.join(".claude/projects");
+    if let Ok(projects) = std::fs::read_dir(&projects_dir) {
+        let now = std::time::SystemTime::now();
+        let recent_threshold = std::time::Duration::from_secs(3600);
+
+        for project in projects.flatten() {
+            if !project.path().is_dir() {
+                continue;
+            }
+            if let Ok(files) = std::fs::read_dir(project.path()) {
+                for file in files.flatten() {
+                    let path = file.path();
+                    if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+                        continue;
+                    }
+                    if let Ok(meta) = path.metadata() {
+                        if let Ok(modified) = meta.modified() {
+                            if let Ok(elapsed) = now.duration_since(modified) {
+                                if elapsed < recent_threshold {
+                                    if let Some(stem) = path.file_stem() {
+                                        let id = stem.to_string_lossy().to_string();
+                                        if !session_ids.contains(&id) {
+                                            session_ids.push(id);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(session_ids)
+}
+
+#[tauri::command]
+async fn archive_and_delete(
+    project_dir_name: String,
+    session_id: String,
+    cwd: String,
+) -> Result<String, String> {
+    let home = dirs::home_dir().ok_or("Failed to resolve home directory")?;
+    let archives_dir = home.join(".claude/session-archives");
+    let archives_dir_str = archives_dir.to_string_lossy().to_string();
+
+    let prompt = format!(
+        r#"Read the file ~/.claude/projects/{project_dir_name}/{session_id}.jsonl and summarize what was done in this Claude Code session.
+
+Output ONLY a valid JSON object (no markdown, no explanation) with this structure:
+{{
+  "sessionId": "{session_id}",
+  "timestamp": "<current ISO 8601 timestamp>",
+  "project": "<project name from the session's cwd>",
+  "cwd": "{cwd}",
+  "branch": "<git branch if mentioned, or null>",
+  "issueKeys": [],
+  "title": "<one-line summary in Korean>",
+  "summary": "<2-3 sentence summary in Korean>",
+  "tasks": ["<each task accomplished, in Korean>"],
+  "filesChanged": ["<files modified>"],
+  "decisions": ["<key decisions, in Korean>"],
+  "tags": ["<bugfix/feature/refactor/devops/analysis>"]
+}}
+
+Be specific, not generic. Write title/summary/tasks/decisions in Korean."#
+    );
+
+    let result = tokio::task::spawn_blocking(move || {
+        iterm::run_claude_headless(&cwd, &prompt)
+    })
+    .await
+    .map_err(|err| format!("Task failed: {err}"))??;
+
+    let json_str = extract_json(&result).ok_or("Failed to extract JSON from Claude output")?;
+
+    let parsed: serde_json::Value = serde_json::from_str(&json_str)
+        .map_err(|err| format!("Failed to parse JSON: {err}"))?;
+
+    let timestamp = parsed.get("timestamp")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let project = parsed.get("project")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+
+    let safe_ts = timestamp.replace([':', '.'], "");
+    let ts_prefix = if safe_ts.len() >= 15 { &safe_ts[..15] } else { &safe_ts };
+    let safe_project = project.chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect::<String>();
+    let filename = format!("{ts_prefix}_{safe_project}.json");
+    let filepath = std::path::Path::new(&archives_dir_str).join(&filename);
+
+    std::fs::write(&filepath, serde_json::to_string_pretty(&parsed).unwrap_or_default())
+        .map_err(|err| format!("Failed to write archive: {err}"))?;
+
+    Ok(format!("Archived to {filename}"))
+}
+
+fn extract_json(text: &str) -> Option<String> {
+    if let Some(start) = text.find('{') {
+        let mut depth = 0;
+        let bytes = text.as_bytes();
+        for (i, &byte) in bytes.iter().enumerate().skip(start) {
+            match byte {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(text[start..=i].to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    None
+}
+
+#[tauri::command]
+fn list_archives() -> Result<Vec<ArchiveEntry>, String> {
+    archive::list_archives()
+}
+
+#[tauri::command]
+fn delete_archive(filename: String) -> Result<(), String> {
+    archive::delete_archive(&filename)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -67,9 +240,15 @@ pub fn run() {
             resume_in_iterm,
             new_session_in_iterm,
             delete_session,
+            queue_deletion,
+            check_archive_exists,
             get_custom_titles,
             set_session_title,
             refresh_buddy,
+            running_sessions,
+            archive_and_delete,
+            list_archives,
+            delete_archive,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

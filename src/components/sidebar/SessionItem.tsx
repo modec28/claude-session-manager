@@ -8,6 +8,7 @@ interface SessionItemProps {
   onSelect: (session: SelectedSession) => void;
   customTitle: string | null;
   onTitleChange: (sessionId: string, title: string) => Promise<void>;
+  isRunning: boolean;
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -31,11 +32,13 @@ export default function SessionItem({
   onSelect,
   customTitle,
   onTitleChange,
+  isRunning,
 }: SessionItemProps) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
 
-  const displayTitle = customTitle || session.title;
+  const baseTitle = customTitle || session.title;
+  const displayTitle = isRunning ? `[실행중] ${baseTitle}` : baseTitle;
 
   const handleDoubleClick = (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -117,6 +120,17 @@ export default function SessionItem({
             }}
           >
             {session.model.replace("claude-", "")}
+          </span>
+        )}
+        {isRunning && (
+          <span
+            className="text-[10px] px-1 rounded font-bold"
+            style={{
+              background: "rgba(166, 227, 161, 0.2)",
+              color: "var(--accent-green)",
+            }}
+          >
+            Running
           </span>
         )}
       </div>

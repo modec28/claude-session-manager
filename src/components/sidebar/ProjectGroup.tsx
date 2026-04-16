@@ -10,6 +10,7 @@ interface ProjectGroupProps {
   customTitles: Record<string, string>;
   onTitleChange: (sessionId: string, title: string) => Promise<void>;
   refreshKey: number;
+  runningSessions: Set<string>;
 }
 
 export default function ProjectGroup({
@@ -19,6 +20,7 @@ export default function ProjectGroup({
   customTitles,
   onTitleChange,
   refreshKey,
+  runningSessions,
 }: ProjectGroupProps) {
   const [expanded, setExpanded] = useState(false);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -71,6 +73,7 @@ export default function ProjectGroup({
               onSelect={onSelect}
               customTitle={customTitles[session.sessionId] ?? null}
               onTitleChange={onTitleChange}
+              isRunning={runningSessions.has(session.sessionId)}
             />
           ))}
         </div>

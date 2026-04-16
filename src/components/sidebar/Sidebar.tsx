@@ -10,6 +10,7 @@ interface SidebarProps {
   customTitles: Record<string, string>;
   onTitleChange: (sessionId: string, title: string) => Promise<void>;
   refreshKey: number;
+  runningSessions: Set<string>;
 }
 
 export default function Sidebar({
@@ -18,6 +19,7 @@ export default function Sidebar({
   customTitles,
   onTitleChange,
   refreshKey,
+  runningSessions,
 }: SidebarProps) {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -119,6 +121,7 @@ export default function Sidebar({
               customTitles={customTitles}
               onTitleChange={onTitleChange}
               refreshKey={refreshKey}
+              runningSessions={runningSessions}
             />
           ))
         )}

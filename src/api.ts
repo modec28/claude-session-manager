@@ -36,6 +36,31 @@ export async function deleteSession(
   return invoke("delete_session", { projectDirName, sessionId });
 }
 
+export async function queueDeletion(
+  projectDirName: string,
+  sessionId: string,
+  sessionTitle: string,
+  cwd: string,
+): Promise<void> {
+  return invoke("queue_deletion", { projectDirName, sessionId, sessionTitle, cwd });
+}
+
+export async function checkArchiveExists(sessionId: string): Promise<boolean> {
+  return invoke("check_archive_exists", { sessionId });
+}
+
+export async function archiveAndDelete(
+  projectDirName: string,
+  sessionId: string,
+  cwd: string,
+): Promise<string> {
+  return invoke("archive_and_delete", { projectDirName, sessionId, cwd });
+}
+
+export async function fetchRunningSessions(): Promise<string[]> {
+  return invoke("running_sessions");
+}
+
 export async function fetchCustomTitles(): Promise<Record<string, string>> {
   return invoke("get_custom_titles");
 }
@@ -58,4 +83,28 @@ export interface BuddyState {
 
 export async function refreshBuddy(): Promise<BuddyState> {
   return invoke("refresh_buddy");
+}
+
+export interface ArchiveEntry {
+  sessionId: string;
+  timestamp: string;
+  project: string;
+  cwd: string;
+  branch: string | null;
+  issueKeys: string[];
+  title: string;
+  summary: string;
+  tasks: string[];
+  filesChanged: string[];
+  decisions: string[];
+  tags: string[];
+  filename: string;
+}
+
+export async function fetchArchives(): Promise<ArchiveEntry[]> {
+  return invoke("list_archives");
+}
+
+export async function removeArchive(filename: string): Promise<void> {
+  return invoke("delete_archive", { filename });
 }
