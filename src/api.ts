@@ -57,6 +57,17 @@ export async function archiveAndDelete(
   return invoke("archive_and_delete", { projectDirName, sessionId, cwd });
 }
 
+export async function openArchivesInFinder(): Promise<void> {
+  return invoke("open_archives_in_finder");
+}
+
+export async function fetchSessionFileSize(
+  projectDirName: string,
+  sessionId: string,
+): Promise<number> {
+  return invoke("session_file_size", { projectDirName, sessionId });
+}
+
 export async function fetchRunningSessions(): Promise<string[]> {
   return invoke("running_sessions");
 }

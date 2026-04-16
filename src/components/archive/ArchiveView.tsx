@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchArchives, removeArchive, type ArchiveEntry } from "../../api";
+import { fetchArchives, removeArchive, openArchivesInFinder, type ArchiveEntry } from "../../api";
 import ArchiveCard from "./ArchiveCard";
 
 export default function ArchiveView() {
@@ -69,9 +69,21 @@ export default function ArchiveView() {
           >
             Work Archive
           </span>
-          <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-            {filtered.length} entries
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+              {filtered.length} entries
+            </span>
+            <button
+              onClick={() => openArchivesInFinder().catch(console.error)}
+              className="text-[10px] px-1.5 py-0.5 rounded transition-opacity hover:opacity-80"
+              style={{
+                background: "var(--bg-surface)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              Open in Finder
+            </button>
+          </div>
         </div>
         <div className="flex gap-2">
           <input

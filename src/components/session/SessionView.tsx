@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
-import {
-  fetchSession,
-  resumeInIterm,
-  deleteSession,
-  archiveAndDelete,
-} from "../../api";
+import { fetchSession, resumeInIterm, deleteSession } from "../../api";
 import type { ConversationMessage, SelectedSession } from "../../types";
+import type { ArchiveJob } from "../../App";
 import MessageBubble from "./MessageBubble";
 
 interface SessionViewProps {
@@ -13,6 +9,8 @@ interface SessionViewProps {
   customTitle: string | null;
   onTitleChange: (sessionId: string, title: string) => Promise<void>;
   onSessionDeleted: () => void;
+  onArchive: (projectDirName: string, sessionId: string, cwd: string, title: string) => void;
+  archiveJob: ArchiveJob | null;
 }
 
 export default function SessionView({
@@ -20,6 +18,8 @@ export default function SessionView({
   customTitle,
   onTitleChange,
   onSessionDeleted,
+  onArchive,
+  archiveJob,
 }: SessionViewProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,6 +37,12 @@ export default function SessionView({
       .finally(() => setLoading(false));
   }, [selected.projectDirName, selected.sessionId]);
 
+  useEffect(() => {
+    if (archiveJob?.status === "error" && archiveJob.error) {
+      setErrorMessage(archiveJob.error);
+    }
+  }, [archiveJob]);
+
   const visibleMessages = showSidechain
     ? messages
     : messages.filter((msg) => !msg.isSidechain);
@@ -52,28 +58,13 @@ export default function SessionView({
   };
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [archiving, setArchiving] = useState(false);
 
   const handleDeleteClick = () => {
     setConfirmingDelete(true);
   };
 
-  const handleArchiveThenDelete = async () => {
-    setConfirmingDelete(false);
-    setArchiving(true);
-    setErrorMessage(null);
-    try {
-      await archiveAndDelete(
-        selected.projectDirName,
-        selected.sessionId,
-        selected.cwd || "/",
-      );
-      onSessionDeleted();
-    } catch (error) {
-      setErrorMessage(String(error));
-    } finally {
-      setArchiving(false);
-    }
+  const handleArchive = () => {
+    onArchive(selected.projectDirName, selected.sessionId, selected.cwd || "/", displayTitle);
   };
 
   const handleForceDelete = async () => {
@@ -106,6 +97,8 @@ export default function SessionView({
       setEditingTitle(false);
     }
   };
+
+  const isArchiving = archiveJob?.status === "archiving";
 
   return (
     <div className="flex flex-col h-full">
@@ -169,7 +162,7 @@ export default function SessionView({
           >
             Resume in iTerm2
           </button>
-          {archiving ? (
+          {isArchiving ? (
             <span
               className="px-3 py-1 rounded text-xs font-medium"
               style={{
@@ -181,7 +174,7 @@ export default function SessionView({
             </span>
           ) : (
             <button
-              onClick={handleArchiveThenDelete}
+              onClick={handleArchive}
               className="px-3 py-1 rounded text-xs font-medium transition-opacity hover:opacity-80"
               style={{
                 background: "var(--accent-blue)",

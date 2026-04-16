@@ -26,11 +26,15 @@ export default function ProjectGroup({
 }: ProjectGroupProps) {
   const [expanded, setExpanded] = useState(false);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (expanded) {
       fetchSessions(project.dirName)
-        .then(setSessions)
+        .then((result) => {
+          setSessions(result);
+          setLoaded(true);
+        })
         .catch(console.error);
     }
   }, [expanded, project.dirName, refreshKey]);
@@ -38,30 +42,16 @@ export default function ProjectGroup({
   const visibleSessions = showArchived
     ? sessions
     : sessions.filter((s) => !s.archived);
-
   const archivedCount = sessions.filter((s) => s.archived).length;
   const isProjectSelected = selected?.projectDirName === project.dirName;
 
-  if (expanded && visibleSessions.length === 0 && !showArchived && archivedCount > 0) {
-    return (
-      <div>
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-xs hover:opacity-80 transition-opacity"
-          style={{ color: "var(--text-muted)" }}
-        >
-          <span style={{ transform: "rotate(90deg)" }}>&#9654;</span>
-          <span className="truncate flex-1 font-medium">{project.displayPath}</span>
-          <span
-            className="text-[10px] px-1.5 rounded"
-            style={{ background: "var(--bg-surface)", color: "var(--text-muted)" }}
-          >
-            {archivedCount} archived
-          </span>
-        </button>
-      </div>
-    );
-  }
+  const countDisplay = loaded
+    ? showArchived
+      ? `${sessions.length}`
+      : archivedCount > 0
+        ? `${visibleSessions.length}+${archivedCount}`
+        : `${visibleSessions.length}`
+    : `${project.sessionCount}`;
 
   return (
     <div>
@@ -88,25 +78,32 @@ export default function ProjectGroup({
             color: "var(--text-muted)",
           }}
         >
-          {sessions.length > 0
-            ? `${visibleSessions.length}${!showArchived && archivedCount > 0 ? `+${archivedCount}` : ""}`
-            : project.sessionCount}
+          {countDisplay}
         </span>
       </button>
       {expanded && (
         <div className="ml-3">
-          {visibleSessions.map((session) => (
-            <SessionItem
-              key={session.sessionId}
-              session={session}
-              projectDirName={project.dirName}
-              isSelected={selected?.sessionId === session.sessionId}
-              onSelect={onSelect}
-              customTitle={customTitles[session.sessionId] ?? null}
-              onTitleChange={onTitleChange}
-              isRunning={runningSessions.has(session.sessionId)}
-            />
-          ))}
+          {visibleSessions.length === 0 && loaded ? (
+            <div
+              className="px-3 py-1.5 text-[10px]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              All {archivedCount} sessions archived
+            </div>
+          ) : (
+            visibleSessions.map((session) => (
+              <SessionItem
+                key={session.sessionId}
+                session={session}
+                projectDirName={project.dirName}
+                isSelected={selected?.sessionId === session.sessionId}
+                onSelect={onSelect}
+                customTitle={customTitles[session.sessionId] ?? null}
+                onTitleChange={onTitleChange}
+                isRunning={runningSessions.has(session.sessionId)}
+              />
+            ))
+          )}
         </div>
       )}
     </div>

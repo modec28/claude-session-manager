@@ -75,6 +75,29 @@ fn refresh_buddy() -> Result<BuddyState, String> {
 }
 
 #[tauri::command]
+fn open_archives_in_finder() -> Result<(), String> {
+    let home = dirs::home_dir().ok_or("Failed to resolve home directory")?;
+    let archives_dir = home.join(".claude/session-archives");
+    Command::new("open")
+        .arg(archives_dir)
+        .spawn()
+        .map_err(|err| format!("Failed to open Finder: {err}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn session_file_size(project_dir_name: String, session_id: String) -> Result<u64, String> {
+    let home = dirs::home_dir().ok_or("Failed to resolve home directory")?;
+    let path = home
+        .join(".claude/projects")
+        .join(&project_dir_name)
+        .join(format!("{session_id}.jsonl"));
+    let meta = std::fs::metadata(&path)
+        .map_err(|err| format!("Failed to get file size: {err}"))?;
+    Ok(meta.len() / 1024)
+}
+
+#[tauri::command]
 fn running_sessions() -> Result<Vec<String>, String> {
     let output = Command::new("ps")
         .args(["aux"])
@@ -289,6 +312,8 @@ pub fn run() {
             get_custom_titles,
             set_session_title,
             refresh_buddy,
+            open_archives_in_finder,
+            session_file_size,
             running_sessions,
             archive_and_delete,
             list_archives,

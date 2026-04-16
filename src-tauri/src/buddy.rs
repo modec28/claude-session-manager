@@ -6,8 +6,11 @@ use serde::{Deserialize, Serialize};
 
 const BUDDY_FILENAME: &str = ".claude/session-manager-buddy.json";
 const ARCHIVES_DIR: &str = ".claude/session-archives";
-const XP_PER_ARCHIVE: u32 = 20;
 const XP_PER_LEVEL: u32 = 100;
+const XP_PER_TASK: u32 = 5;
+const XP_PER_FILE_CHANGED: u32 = 3;
+const XP_PER_DECISION: u32 = 8;
+const XP_BASE_PER_ARCHIVE: u32 = 10;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -121,23 +124,30 @@ fn extract_cwd_from_jsonl(path: &std::path::Path) -> Option<String> {
     None
 }
 
-fn count_archives_and_earliest() -> (u32, Option<String>) {
+struct ArchiveStats {
+    count: u32,
+    total_xp: u32,
+    earliest: Option<String>,
+}
+
+fn scan_archives() -> ArchiveStats {
     let home = match dirs::home_dir() {
         Some(h) => h,
-        None => return (0, None),
+        None => return ArchiveStats { count: 0, total_xp: 0, earliest: None },
     };
     let archives_dir = home.join(ARCHIVES_DIR);
 
     if !archives_dir.exists() {
-        return (0, None);
+        return ArchiveStats { count: 0, total_xp: 0, earliest: None };
     }
 
     let entries = match fs::read_dir(&archives_dir) {
         Ok(e) => e,
-        Err(_) => return (0, None),
+        Err(_) => return ArchiveStats { count: 0, total_xp: 0, earliest: None },
     };
 
     let mut count = 0u32;
+    let mut total_xp = 0u32;
     let mut earliest: Option<String> = None;
 
     for entry in entries.flatten() {
@@ -150,6 +160,21 @@ fn count_archives_and_earliest() -> (u32, Option<String>) {
 
         if let Ok(content) = fs::read_to_string(&path) {
             if let Ok(archive) = serde_json::from_str::<serde_json::Value>(&content) {
+                let task_count = archive.get("tasks")
+                    .and_then(|v| v.as_array())
+                    .map_or(0, |a| a.len()) as u32;
+                let file_count = archive.get("filesChanged")
+                    .and_then(|v| v.as_array())
+                    .map_or(0, |a| a.len()) as u32;
+                let decision_count = archive.get("decisions")
+                    .and_then(|v| v.as_array())
+                    .map_or(0, |a| a.len()) as u32;
+
+                total_xp += XP_BASE_PER_ARCHIVE
+                    + (task_count * XP_PER_TASK)
+                    + (file_count * XP_PER_FILE_CHANGED)
+                    + (decision_count * XP_PER_DECISION);
+
                 let start = archive
                     .get("startDate")
                     .or_else(|| archive.get("timestamp"))
@@ -165,7 +190,7 @@ fn count_archives_and_earliest() -> (u32, Option<String>) {
         }
     }
 
-    (count, earliest)
+    ArchiveStats { count, total_xp, earliest }
 }
 
 fn count_total_sessions() -> usize {
@@ -214,20 +239,13 @@ pub fn refresh_buddy() -> Result<BuddyState, String> {
         }
     }
 
-    let (archive_count, earliest_date) = count_archives_and_earliest();
+    let stats = scan_archives();
 
-    if archive_count > state.total_archives {
-        let new_archives = archive_count - state.total_archives;
-        state.xp += XP_PER_ARCHIVE * new_archives;
+    state.total_archives = stats.count;
+    state.xp = stats.total_xp % XP_PER_LEVEL;
+    state.level = 1 + (stats.total_xp / XP_PER_LEVEL);
 
-        while state.xp >= XP_PER_LEVEL {
-            state.xp -= XP_PER_LEVEL;
-            state.level += 1;
-        }
-    }
-    state.total_archives = archive_count;
-
-    if let Some(ref earliest) = earliest_date {
+    if let Some(ref earliest) = stats.earliest {
         state.first_activity = Some(earliest.clone());
         state.d_plus_day = days_since(earliest);
     }
