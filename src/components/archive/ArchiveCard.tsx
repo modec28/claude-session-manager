@@ -9,14 +9,14 @@ interface ArchiveCardProps {
 function formatDateRange(startDate: string, endDate: string): string {
   if (!startDate) return "";
   try {
-    const fmt = (ts: string) =>
+    const formatDateTime = (ts: string) =>
       new Date(ts).toLocaleString("ko-KR", {
         month: "2-digit",
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
       });
-    const start = fmt(startDate);
+    const start = formatDateTime(startDate);
     if (!endDate || startDate === endDate) return start;
     const startDay = startDate.slice(0, 10);
     const endDay = endDate.slice(0, 10);
@@ -27,7 +27,7 @@ function formatDateRange(startDate: string, endDate: string): string {
       });
       return `${start} ~ ${endTime}`;
     }
-    return `${start} ~ ${fmt(endDate)}`;
+    return `${start} ~ ${formatDateTime(endDate)}`;
   } catch {
     return startDate;
   }

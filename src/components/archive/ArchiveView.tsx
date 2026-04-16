@@ -30,11 +30,11 @@ export default function ArchiveView() {
     return (
       archive.title.toLowerCase().includes(query) ||
       archive.summary.toLowerCase().includes(query) ||
-      archive.tasks.some((t) => t.toLowerCase().includes(query)) ||
-      archive.tags.some((t) => t.toLowerCase().includes(query)) ||
-      archive.issueKeys.some((k) => k.toLowerCase().includes(query)) ||
-      archive.filesChanged.some((f) => f.toLowerCase().includes(query)) ||
-      archive.decisions.some((d) => d.toLowerCase().includes(query))
+      archive.tasks.some((task) => task.toLowerCase().includes(query)) ||
+      archive.tags.some((tag) => tag.toLowerCase().includes(query)) ||
+      archive.issueKeys.some((key) => key.toLowerCase().includes(query)) ||
+      archive.filesChanged.some((file) => file.toLowerCase().includes(query)) ||
+      archive.decisions.some((decision) => decision.toLowerCase().includes(query))
     );
   });
 

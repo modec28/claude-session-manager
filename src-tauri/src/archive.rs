@@ -83,6 +83,10 @@ pub fn list_archives() -> Result<Vec<ArchiveEntry>, String> {
 }
 
 pub fn delete_archive(filename: &str) -> Result<(), String> {
+    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+        return Err("Invalid archive filename".to_string());
+    }
+
     let dir = archives_path()?;
     let path = dir.join(filename);
 
@@ -90,10 +94,17 @@ pub fn delete_archive(filename: &str) -> Result<(), String> {
         return Err(format!("Archive not found: {filename}"));
     }
 
-    if !path.starts_with(&dir) {
+    let canonical = path
+        .canonicalize()
+        .map_err(|err| format!("Failed to resolve path: {err}"))?;
+    let canonical_dir = dir
+        .canonicalize()
+        .map_err(|err| format!("Failed to resolve archive dir: {err}"))?;
+
+    if !canonical.starts_with(&canonical_dir) {
         return Err("Invalid archive path".to_string());
     }
 
-    fs::remove_file(&path)
+    fs::remove_file(&canonical)
         .map_err(|err| format!("Failed to delete archive: {err}"))
 }

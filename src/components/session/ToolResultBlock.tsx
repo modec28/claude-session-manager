@@ -22,11 +22,13 @@ function extractResultText(content: unknown): string {
   return String(content ?? "");
 }
 
+const RESULT_PREVIEW_LENGTH = 120;
+
 export default function ToolResultBlock({ content }: ToolResultBlockProps) {
   const [expanded, setExpanded] = useState(false);
   const text = extractResultText(content);
-  const preview = text.slice(0, 120);
-  const hasMore = text.length > 120;
+  const preview = text.slice(0, RESULT_PREVIEW_LENGTH);
+  const hasMore = text.length > RESULT_PREVIEW_LENGTH;
 
   return (
     <div

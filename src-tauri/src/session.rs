@@ -10,6 +10,21 @@ use crate::models::{
 
 const CLAUDE_PROJECTS_DIR: &str = ".claude/projects";
 const TITLE_MAX_CHARS: usize = 57;
+const SAFE_NAME_PATTERN: &str = "^[a-zA-Z0-9._-]+$";
+
+pub fn validate_path_input(name: &str) -> Result<(), String> {
+    validate_path_component(name)
+}
+
+fn validate_path_component(name: &str) -> Result<(), String> {
+    if name.is_empty() {
+        return Err("Path component cannot be empty".to_string());
+    }
+    if name.contains("..") || name.contains('/') || name.contains('\\') {
+        return Err(format!("Invalid path component: {name}"));
+    }
+    Ok(())
+}
 
 fn truncate_chars(text: &str, max_chars: usize) -> String {
     let char_count = text.chars().count();
@@ -102,6 +117,7 @@ pub fn list_projects() -> Result<Vec<ProjectInfo>, String> {
 }
 
 pub fn list_sessions(project_dir_name: &str) -> Result<Vec<SessionInfo>, String> {
+    validate_path_component(project_dir_name)?;
     let base = projects_base_path()?;
     let project_path = base.join(project_dir_name);
 
@@ -317,6 +333,8 @@ pub fn load_session(
     project_dir_name: &str,
     session_id: &str,
 ) -> Result<Vec<ConversationMessage>, String> {
+    validate_path_component(project_dir_name)?;
+    validate_path_component(session_id)?;
     let base = projects_base_path()?;
     let session_path = base
         .join(project_dir_name)
@@ -462,6 +480,8 @@ fn parse_content_blocks(content: Option<&serde_json::Value>) -> Vec<ContentBlock
 }
 
 pub fn delete_session(project_dir_name: &str, session_id: &str) -> Result<(), String> {
+    validate_path_component(project_dir_name)?;
+    validate_path_component(session_id)?;
     let base = projects_base_path()?;
     let session_path = base
         .join(project_dir_name)
@@ -491,6 +511,8 @@ pub fn queue_for_deletion(
     session_title: &str,
     cwd: &str,
 ) -> Result<(), String> {
+    validate_path_component(project_dir_name)?;
+    validate_path_component(session_id)?;
     let home = dirs::home_dir().ok_or("Failed to resolve home directory")?;
     let pending_dir = home.join(PENDING_DELETE_DIR);
 
@@ -527,17 +549,6 @@ pub fn has_archive(session_id: &str) -> Result<bool, String> {
     let entries = fs::read_dir(&archives_dir)
         .map_err(|err| format!("Failed to read archives: {err}"))?;
 
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("json") {
-            continue;
-        }
-        if let Ok(content) = fs::read_to_string(&path) {
-            if content.contains(session_id) {
-                return Ok(true);
-            }
-        }
-    }
-
-    Ok(false)
+    let archived_ids = load_archived_session_ids();
+    Ok(archived_ids.contains(session_id))
 }

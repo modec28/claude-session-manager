@@ -24,10 +24,17 @@
 - CLAUDE.md에 아카이브 참조 안내 추가
 
 ### 버디 위젯
-- GitHub 아바타 (git config user.name → github.com/{username}.png)
+- GitHub 아바타 (git config user.name에서 자동 감지)
 - 아카이브 기반 XP 시스템 (task 5XP, file 3XP, decision 8XP, 기본 10XP)
 - 100 XP마다 레벨업
 - 아카이브 수 / 세션 수 표시
+
+### 보안 (v0.1.0 hardening)
+- 모든 Tauri 커맨드에 Path Traversal 방어 (validate_path_component)
+- delete_archive에 canonicalize + starts_with 검증
+- CSP 활성화 (default-src 'self')
+- Shell Injection 방어 (디렉토리 존재 검증 + single-quote 이스케이프)
+- MIT 라이선스
 
 ### 기타
 - Claude 스타일 앱 아이콘

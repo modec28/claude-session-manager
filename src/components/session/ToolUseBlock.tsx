@@ -16,6 +16,7 @@ const TOOL_COLORS: Record<string, string> = {
 };
 
 const FALLBACK_TOOL_COLOR = "var(--text-muted)";
+const SUMMARY_PREVIEW_LENGTH = 120;
 
 function toolSummary(name: string, input: unknown): string {
   if (!input || typeof input !== "object") return "";
@@ -29,7 +30,7 @@ function toolSummary(name: string, input: unknown): string {
     case "Edit":
       return String(record.file_path ?? "");
     case "Bash":
-      return String(record.command ?? "").slice(0, 120);
+      return String(record.command ?? "").slice(0, SUMMARY_PREVIEW_LENGTH);
     case "Grep":
       return `/${record.pattern ?? ""}/ in ${record.path ?? "."}`;
     case "Glob":

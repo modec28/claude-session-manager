@@ -11,6 +11,10 @@ use models::{ConversationMessage, ProjectInfo, SessionInfo};
 use std::collections::HashMap;
 use std::process::Command;
 
+const UUID_LENGTH: usize = 36;
+const RUNNING_SESSION_THRESHOLD_SECS: u64 = 3600;
+const TIMESTAMP_PREFIX_LENGTH: usize = 15;
+
 #[tauri::command]
 fn list_projects() -> Result<Vec<ProjectInfo>, String> {
     session::list_projects()
@@ -87,6 +91,8 @@ fn open_archives_in_finder() -> Result<(), String> {
 
 #[tauri::command]
 fn session_file_size(project_dir_name: String, session_id: String) -> Result<u64, String> {
+    session::validate_path_input(&project_dir_name)?;
+    session::validate_path_input(&session_id)?;
     let home = dirs::home_dir().ok_or("Failed to resolve home directory")?;
     let path = home
         .join(".claude/projects")
@@ -106,14 +112,12 @@ fn running_sessions() -> Result<Vec<String>, String> {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut session_ids: Vec<String> = Vec::new();
-    let uuid_len = 36;
-
     for line in stdout.lines() {
         for flag in ["--resume ", "-r ", "--session-id "] {
             if let Some(pos) = line.find(flag) {
                 let after = &line[pos + flag.len()..];
                 let id = after.split_whitespace().next().unwrap_or("");
-                if id.len() >= uuid_len {
+                if id.len() >= UUID_LENGTH {
                     session_ids.push(id.to_string());
                 }
             }
@@ -124,7 +128,7 @@ fn running_sessions() -> Result<Vec<String>, String> {
     let projects_dir = home.join(".claude/projects");
     if let Ok(projects) = std::fs::read_dir(&projects_dir) {
         let now = std::time::SystemTime::now();
-        let recent_threshold = std::time::Duration::from_secs(3600);
+        let recent_threshold = std::time::Duration::from_secs(RUNNING_SESSION_THRESHOLD_SECS);
 
         for project in projects.flatten() {
             if !project.path().is_dir() {
@@ -164,6 +168,8 @@ async fn archive_and_delete(
     session_id: String,
     cwd: String,
 ) -> Result<String, String> {
+    session::validate_path_input(&project_dir_name)?;
+    session::validate_path_input(&session_id)?;
     let home = dirs::home_dir().ok_or("Failed to resolve home directory")?;
     let archives_dir = home.join(".claude/session-archives");
     let archives_dir_str = archives_dir.to_string_lossy().to_string();
@@ -217,7 +223,11 @@ Be specific, not generic. Write title/summary/tasks/decisions in Korean."#
         .unwrap_or("unknown");
 
     let safe_ts = timestamp.replace([':', '.'], "");
-    let ts_prefix = if safe_ts.len() >= 15 { &safe_ts[..15] } else { &safe_ts };
+    let ts_prefix = if safe_ts.len() >= TIMESTAMP_PREFIX_LENGTH {
+        &safe_ts[..TIMESTAMP_PREFIX_LENGTH]
+    } else {
+        &safe_ts
+    };
     let safe_project = project.chars()
         .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
         .collect::<String>();
@@ -267,20 +277,28 @@ fn extract_session_timerange(path: &std::path::Path) -> (String, String) {
 }
 
 fn extract_json(text: &str) -> Option<String> {
-    if let Some(start) = text.find('{') {
-        let mut depth = 0;
-        let bytes = text.as_bytes();
-        for (i, &byte) in bytes.iter().enumerate().skip(start) {
-            match byte {
-                b'{' => depth += 1,
-                b'}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Some(text[start..=i].to_string());
-                    }
+    let start = text.find('{')?;
+    let bytes = text.as_bytes();
+    let mut depth = 0;
+    let mut in_string = false;
+    let mut escape_next = false;
+
+    for (i, &byte) in bytes.iter().enumerate().skip(start) {
+        if escape_next {
+            escape_next = false;
+            continue;
+        }
+        match byte {
+            b'\\' if in_string => escape_next = true,
+            b'"' => in_string = !in_string,
+            b'{' if !in_string => depth += 1,
+            b'}' if !in_string => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(text[start..=i].to_string());
                 }
-                _ => {}
             }
+            _ => {}
         }
     }
     None

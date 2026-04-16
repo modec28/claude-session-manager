@@ -59,15 +59,19 @@ pub fn preflight_check() -> Result<(), String> {
 }
 
 fn run_applescript(cwd: &str, shell_command: &str) -> Result<(), String> {
-    let escaped_cwd = cwd.replace('\\', "\\\\").replace('"', "\\\"");
-    let escaped_cmd = shell_command.replace('\\', "\\\\").replace('"', "\\\"");
+    if !std::path::Path::new(cwd).is_dir() {
+        return Err(format!("Directory does not exist: {cwd}"));
+    }
+
+    let safe_cwd = shell_escape(cwd);
+    let safe_cmd = shell_command.replace('\\', "\\\\").replace('"', "\\\"");
 
     let script = format!(
         r#"tell application "iTerm2"
     activate
     set newWindow to (create window with default profile)
     tell current session of newWindow
-        write text "cd \"{escaped_cwd}\" && {escaped_cmd}"
+        write text "cd {safe_cwd} && {safe_cmd}"
     end tell
 end tell"#
     );
