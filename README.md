@@ -17,14 +17,19 @@ A macOS desktop app for managing Claude Code sessions (Tauri v2 + React)
 
 ## Prerequisites
 
-- macOS
-- [Rust](https://rustup.rs/) (1.70+)
-- [Node.js](https://nodejs.org/) (18+)
-- [pnpm](https://pnpm.io/)
-- [iTerm2](https://iterm2.com/)
+- macOS (Apple Silicon)
+- [iTerm2](https://iterm2.com/) (for session resume)
 - [Claude Code CLI](https://claude.ai/claude-code) (for archive feature)
 
 ## Installation
+
+### DMG (Recommended)
+
+Download `claude-session-manager_0.1.0_aarch64.dmg` from [Releases](https://github.com/modec28/claude-session-manager/releases) and drag to Applications.
+
+### Build from Source
+
+Requires [Rust](https://rustup.rs/) (1.70+), [Node.js](https://nodejs.org/) (18+), [pnpm](https://pnpm.io/).
 
 ```bash
 git clone https://github.com/modec28/claude-session-manager.git

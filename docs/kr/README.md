@@ -15,14 +15,19 @@ Claude Code 세션을 관리하는 macOS 데스크톱 앱 (Tauri v2 + React)
 
 ## 사전 요구사항
 
-- macOS
-- [Rust](https://rustup.rs/) (1.70+)
-- [Node.js](https://nodejs.org/) (18+)
-- [pnpm](https://pnpm.io/)
-- [iTerm2](https://iterm2.com/) (터미널 연동용)
+- macOS (Apple Silicon)
+- [iTerm2](https://iterm2.com/) (세션 Resume용)
 - [Claude Code CLI](https://claude.ai/claude-code) (아카이브 기능용)
 
-## 설치 및 빌드
+## 설치
+
+### DMG (권장)
+
+[Releases](https://github.com/modec28/claude-session-manager/releases)에서 `claude-session-manager_0.1.0_aarch64.dmg`를 다운로드하여 Applications에 드래그.
+
+### 소스 빌드
+
+[Rust](https://rustup.rs/) (1.70+), [Node.js](https://nodejs.org/) (18+), [pnpm](https://pnpm.io/)이 필요합니다.
 
 ```bash
 git clone https://github.com/modec28/claude-session-manager.git
