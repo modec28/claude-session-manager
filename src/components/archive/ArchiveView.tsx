@@ -45,7 +45,7 @@ export default function ArchiveView() {
 
   const groupedByDate = filtered.reduce<Record<string, ArchiveEntry[]>>(
     (acc, entry) => {
-      const date = entry.timestamp.slice(0, 10) || "Unknown";
+      const date = entry.startDate.slice(0, 10) || "Unknown";
       if (!acc[date]) acc[date] = [];
       acc[date].push(entry);
       return acc;

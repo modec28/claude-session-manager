@@ -73,12 +73,14 @@ export async function setSessionTitle(
 }
 
 export interface BuddyState {
+  githubUsername: string | null;
+  avatarUrl: string | null;
   level: number;
   xp: number;
+  totalArchives: number;
+  dPlusDay: number | null;
+  firstActivity: string | null;
   totalSessions: number;
-  weightStage: number;
-  totalCleanups: number;
-  lastSessionCount: number;
 }
 
 export async function refreshBuddy(): Promise<BuddyState> {
@@ -87,7 +89,8 @@ export async function refreshBuddy(): Promise<BuddyState> {
 
 export interface ArchiveEntry {
   sessionId: string;
-  timestamp: string;
+  startDate: string;
+  endDate: string;
   project: string;
   cwd: string;
   branch: string | null;

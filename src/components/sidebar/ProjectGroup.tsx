@@ -11,6 +11,7 @@ interface ProjectGroupProps {
   onTitleChange: (sessionId: string, title: string) => Promise<void>;
   refreshKey: number;
   runningSessions: Set<string>;
+  showArchived: boolean;
 }
 
 export default function ProjectGroup({
@@ -21,9 +22,11 @@ export default function ProjectGroup({
   onTitleChange,
   refreshKey,
   runningSessions,
+  showArchived,
 }: ProjectGroupProps) {
   const [expanded, setExpanded] = useState(false);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
+
   useEffect(() => {
     if (expanded) {
       fetchSessions(project.dirName)
@@ -32,7 +35,33 @@ export default function ProjectGroup({
     }
   }, [expanded, project.dirName, refreshKey]);
 
+  const visibleSessions = showArchived
+    ? sessions
+    : sessions.filter((s) => !s.archived);
+
+  const archivedCount = sessions.filter((s) => s.archived).length;
   const isProjectSelected = selected?.projectDirName === project.dirName;
+
+  if (expanded && visibleSessions.length === 0 && !showArchived && archivedCount > 0) {
+    return (
+      <div>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-xs hover:opacity-80 transition-opacity"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <span style={{ transform: "rotate(90deg)" }}>&#9654;</span>
+          <span className="truncate flex-1 font-medium">{project.displayPath}</span>
+          <span
+            className="text-[10px] px-1.5 rounded"
+            style={{ background: "var(--bg-surface)", color: "var(--text-muted)" }}
+          >
+            {archivedCount} archived
+          </span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -59,12 +88,14 @@ export default function ProjectGroup({
             color: "var(--text-muted)",
           }}
         >
-          {project.sessionCount}
+          {sessions.length > 0
+            ? `${visibleSessions.length}${!showArchived && archivedCount > 0 ? `+${archivedCount}` : ""}`
+            : project.sessionCount}
         </span>
       </button>
       {expanded && (
         <div className="ml-3">
-          {sessions.map((session) => (
+          {visibleSessions.map((session) => (
             <SessionItem
               key={session.sessionId}
               session={session}

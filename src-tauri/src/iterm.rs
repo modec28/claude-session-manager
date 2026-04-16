@@ -124,12 +124,21 @@ fn resolve_claude_path() -> Result<String, String> {
 pub fn run_claude_headless(cwd: &str, prompt: &str) -> Result<String, String> {
     let claude_path = resolve_claude_path()?;
 
+    let effective_cwd = if Path::new(cwd).is_dir() {
+        cwd.to_string()
+    } else {
+        dirs::home_dir()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string()
+    };
+
     let output = Command::new("/bin/zsh")
         .arg("-l")
         .arg("-c")
         .arg(format!(
             "cd {} && {} --print {}",
-            shell_escape(cwd),
+            shell_escape(&effective_cwd),
             shell_escape(&claude_path),
             shell_escape(prompt),
         ))

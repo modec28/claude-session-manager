@@ -10,8 +10,10 @@ const ARCHIVES_DIR: &str = ".claude/session-archives";
 pub struct ArchiveEntry {
     #[serde(default)]
     pub session_id: String,
+    #[serde(default, alias = "timestamp")]
+    pub start_date: String,
     #[serde(default)]
-    pub timestamp: String,
+    pub end_date: String,
     #[serde(default)]
     pub project: String,
     #[serde(default)]
@@ -76,7 +78,7 @@ pub fn list_archives() -> Result<Vec<ArchiveEntry>, String> {
         archives.push(archive);
     }
 
-    archives.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    archives.sort_by(|a, b| b.start_date.cmp(&a.start_date));
     Ok(archives)
 }
 

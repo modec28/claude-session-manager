@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 import { refreshBuddy, type BuddyState } from "../../api";
 
-const BUDDY_FACES = ["(*^-^*)", "(*^o^*)", "(*-_-*)", "(;*_*;)", "(>_<|||)"];
-const BUDDY_MOODS = ["Fit", "Healthy", "Pudgy", "Chubby", "Overweight"];
-const BUDDY_WIDTHS = ["40px", "46px", "52px", "60px", "70px"];
-
-const XP_PER_LEVEL = 50;
+const XP_PER_LEVEL = 100;
 
 interface BuddyWidgetProps {
   refreshKey: number;
@@ -20,9 +16,6 @@ export default function BuddyWidget({ refreshKey }: BuddyWidgetProps) {
 
   if (!buddy) return null;
 
-  const face = BUDDY_FACES[buddy.weightStage] ?? BUDDY_FACES[BUDDY_FACES.length - 1];
-  const mood = BUDDY_MOODS[buddy.weightStage] ?? BUDDY_MOODS[BUDDY_MOODS.length - 1];
-  const bodyWidth = BUDDY_WIDTHS[buddy.weightStage] ?? BUDDY_WIDTHS[BUDDY_WIDTHS.length - 1];
   const xpPercent = Math.min((buddy.xp / XP_PER_LEVEL) * 100, 100);
 
   return (
@@ -31,25 +24,30 @@ export default function BuddyWidget({ refreshKey }: BuddyWidgetProps) {
       style={{ borderColor: "var(--border-color)" }}
     >
       <div className="flex items-center gap-3">
-        <div
-          className="flex items-center justify-center rounded-xl shrink-0"
-          style={{
-            width: bodyWidth,
-            height: "40px",
-            background: "var(--bg-surface)",
-            fontSize: "14px",
-            transition: "width 0.3s ease",
-          }}
-        >
-          {face}
-        </div>
+        {buddy.avatarUrl ? (
+          <img
+            src={buddy.avatarUrl}
+            className="w-10 h-10 rounded-full shrink-0"
+            style={{ border: "2px solid var(--border-color)" }}
+          />
+        ) : (
+          <div
+            className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm"
+            style={{
+              background: "var(--bg-surface)",
+              color: "var(--text-muted)",
+            }}
+          >
+            ?
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold" style={{ color: "var(--text-primary)" }}>
-              Lv.{buddy.level} {mood}
-            </span>
-            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-              {buddy.totalSessions} sessions
+            <span
+              className="text-[10px] font-bold truncate"
+              style={{ color: "var(--text-primary)" }}
+            >
+              Lv.{buddy.level} {buddy.githubUsername ?? "Unknown"}
             </span>
           </div>
           <div
@@ -60,20 +58,22 @@ export default function BuddyWidget({ refreshKey }: BuddyWidgetProps) {
               className="h-full rounded-full transition-all"
               style={{
                 width: `${xpPercent}%`,
-                background: buddy.weightStage <= 1
-                  ? "var(--accent-green)"
-                  : buddy.weightStage <= 2
-                    ? "var(--accent-peach)"
-                    : "var(--accent-red)",
+                background: "var(--accent-green)",
               }}
             />
           </div>
           <div className="flex items-center justify-between mt-0.5">
-            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+            <span
+              className="text-[10px]"
+              style={{ color: "var(--text-muted)" }}
+            >
               XP {buddy.xp}/{XP_PER_LEVEL}
             </span>
-            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-              {buddy.totalCleanups} cleaned
+            <span
+              className="text-[10px]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {buddy.totalArchives} archived / {buddy.totalSessions} sessions
             </span>
           </div>
         </div>

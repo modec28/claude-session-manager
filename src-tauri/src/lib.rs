@@ -145,13 +145,20 @@ async fn archive_and_delete(
     let archives_dir = home.join(".claude/session-archives");
     let archives_dir_str = archives_dir.to_string_lossy().to_string();
 
+    let session_path = home
+        .join(".claude/projects")
+        .join(&project_dir_name)
+        .join(format!("{session_id}.jsonl"));
+    let (start_ts, end_ts) = extract_session_timerange(&session_path);
+
     let prompt = format!(
         r#"Read the file ~/.claude/projects/{project_dir_name}/{session_id}.jsonl and summarize what was done in this Claude Code session.
 
 Output ONLY a valid JSON object (no markdown, no explanation) with this structure:
 {{
   "sessionId": "{session_id}",
-  "timestamp": "<current ISO 8601 timestamp>",
+  "startDate": "{start_ts}",
+  "endDate": "{end_ts}",
   "project": "<project name from the session's cwd>",
   "cwd": "{cwd}",
   "branch": "<git branch if mentioned, or null>",
@@ -178,7 +185,8 @@ Be specific, not generic. Write title/summary/tasks/decisions in Korean."#
     let parsed: serde_json::Value = serde_json::from_str(&json_str)
         .map_err(|err| format!("Failed to parse JSON: {err}"))?;
 
-    let timestamp = parsed.get("timestamp")
+    let timestamp = parsed.get("startDate")
+        .or_else(|| parsed.get("timestamp"))
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
     let project = parsed.get("project")
@@ -197,6 +205,42 @@ Be specific, not generic. Write title/summary/tasks/decisions in Korean."#
         .map_err(|err| format!("Failed to write archive: {err}"))?;
 
     Ok(format!("Archived to {filename}"))
+}
+
+fn extract_session_timerange(path: &std::path::Path) -> (String, String) {
+    let unknown = "unknown".to_string();
+    let file = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return (unknown.clone(), unknown),
+    };
+    let reader = std::io::BufReader::new(file);
+
+    let mut first_ts: Option<String> = None;
+    let mut last_ts: Option<String> = None;
+
+    use std::io::BufRead;
+    for line in reader.lines().flatten() {
+        if !line.contains("\"timestamp\"") {
+            continue;
+        }
+        if let Ok(entry) = serde_json::from_str::<serde_json::Value>(&line) {
+            let entry_type = entry.get("type").and_then(|v| v.as_str()).unwrap_or("");
+            if entry_type != "user" && entry_type != "assistant" {
+                continue;
+            }
+            if let Some(ts) = entry.get("timestamp").and_then(|v| v.as_str()) {
+                if first_ts.is_none() {
+                    first_ts = Some(ts.to_string());
+                }
+                last_ts = Some(ts.to_string());
+            }
+        }
+    }
+
+    (
+        first_ts.unwrap_or_else(|| unknown.clone()),
+        last_ts.unwrap_or(unknown),
+    )
 }
 
 fn extract_json(text: &str) -> Option<String> {

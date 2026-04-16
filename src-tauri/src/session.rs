@@ -2,6 +2,8 @@ use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
+use std::collections::HashSet;
+
 use crate::models::{
     ContentBlock, ConversationMessage, MessageRole, ProjectInfo, RawEntry, SessionInfo,
 };
@@ -22,6 +24,36 @@ fn truncate_chars(text: &str, max_chars: usize) -> String {
 fn projects_base_path() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or("Failed to resolve home directory")?;
     Ok(home.join(CLAUDE_PROJECTS_DIR))
+}
+
+fn load_archived_session_ids() -> HashSet<String> {
+    let mut ids = HashSet::new();
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return ids,
+    };
+    let archives_dir = home.join(".claude/session-archives");
+    if !archives_dir.exists() {
+        return ids;
+    }
+
+    if let Ok(entries) = fs::read_dir(&archives_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            if let Ok(content) = fs::read_to_string(&path) {
+                if let Ok(archive) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(sid) = archive.get("sessionId").and_then(|v| v.as_str()) {
+                        ids.insert(sid.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    ids
 }
 
 fn dir_name_to_display_path(dir_name: &str) -> String {
@@ -80,6 +112,8 @@ pub fn list_sessions(project_dir_name: &str) -> Result<Vec<SessionInfo>, String>
     let entries =
         fs::read_dir(&project_path).map_err(|err| format!("Failed to read project dir: {err}"))?;
 
+    let archived_ids = load_archived_session_ids();
+
     let mut sessions: Vec<SessionInfo> = Vec::new();
 
     for entry in entries.flatten() {
@@ -93,9 +127,12 @@ pub fn list_sessions(project_dir_name: &str) -> Result<Vec<SessionInfo>, String>
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
 
+        let archived = archived_ids.contains(&session_id);
+
         match extract_session_metadata(&path) {
             Ok(meta) => sessions.push(SessionInfo {
                 session_id,
+                archived,
                 title: meta.title,
                 timestamp: meta.timestamp,
                 message_count: meta.message_count,

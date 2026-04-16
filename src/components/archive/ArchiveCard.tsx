@@ -6,15 +6,30 @@ interface ArchiveCardProps {
   onDelete: (filename: string) => Promise<void>;
 }
 
-function formatTime(timestamp: string): string {
-  if (!timestamp) return "";
+function formatDateRange(startDate: string, endDate: string): string {
+  if (!startDate) return "";
   try {
-    return new Date(timestamp).toLocaleTimeString("ko-KR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const fmt = (ts: string) =>
+      new Date(ts).toLocaleString("ko-KR", {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    const start = fmt(startDate);
+    if (!endDate || startDate === endDate) return start;
+    const startDay = startDate.slice(0, 10);
+    const endDay = endDate.slice(0, 10);
+    if (startDay === endDay) {
+      const endTime = new Date(endDate).toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      return `${start} ~ ${endTime}`;
+    }
+    return `${start} ~ ${fmt(endDate)}`;
   } catch {
-    return "";
+    return startDate;
   }
 }
 
@@ -46,7 +61,7 @@ export default function ArchiveCard({ entry, onDelete }: ArchiveCardProps) {
               className="text-[10px]"
               style={{ color: "var(--text-muted)" }}
             >
-              {formatTime(entry.timestamp)}
+              {formatDateRange(entry.startDate, entry.endDate)}
             </span>
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">

@@ -17,6 +17,7 @@ pub struct SessionInfo {
     pub message_count: usize,
     pub cwd: String,
     pub model: Option<String>,
+    pub archived: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

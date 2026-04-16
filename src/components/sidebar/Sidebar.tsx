@@ -25,6 +25,7 @@ export default function Sidebar({
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -90,6 +91,18 @@ export default function Sidebar({
             border: "1px solid var(--border-color)",
           }}
         />
+        <label
+          className="flex items-center gap-1.5 mt-2 text-[10px] cursor-pointer"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(event) => setShowArchived(event.target.checked)}
+            className="w-3 h-3"
+          />
+          Show archived
+        </label>
         {errorMessage && (
           <div
             className="mt-2 p-2 rounded text-[10px]"
@@ -122,6 +135,7 @@ export default function Sidebar({
               onTitleChange={onTitleChange}
               refreshKey={refreshKey}
               runningSessions={runningSessions}
+              showArchived={showArchived}
             />
           ))
         )}

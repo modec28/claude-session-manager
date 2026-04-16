@@ -11,6 +11,7 @@ export interface SessionInfo {
   messageCount: number;
   cwd: string;
   model: string | null;
+  archived: boolean;
 }
 
 export interface ConversationMessage {
