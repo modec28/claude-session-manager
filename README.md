@@ -28,7 +28,6 @@ Claude Code 세션을 관리하는 macOS 데스크톱 앱 (Tauri v2 + React)
 git clone https://github.com/modec28/claude-session-manager.git
 cd claude-session-manager
 pnpm install
-cd mcp-server && pnpm install && cd ..
 pnpm tauri build
 ```
 
@@ -61,27 +60,6 @@ pnpm tauri dev
 
 `~/.claude/commands/summarize-session.md` 파일이 설치 시 자동 생성된다. Claude Code 세션에서 `/summarize-session`을 실행하면 현재 세션을 수동으로 아카이브할 수 있다.
 
-### 3. MCP 서버 등록 (선택)
-
-`~/.claude/settings.json`에 MCP 서버를 등록하면 Claude Code에서 아카이브 도구를 직접 호출할 수 있다:
-
-```json
-{
-  "mcpServers": {
-    "session-manager": {
-      "command": "node",
-      "args": ["/path/to/claude-session-manager/mcp-server/index.mjs"]
-    }
-  }
-}
-```
-
-MCP 도구 목록:
-- `save_archive` - 세션 아카이브 저장
-- `list_archives` - 저장된 아카이브 조회
-- `list_pending_deletions` - 삭제 대기열 확인
-- `confirm_deletion` - 세션 삭제 확정
-
 ## 데이터 저장 위치
 
 | 데이터 | 경로 |
@@ -112,4 +90,3 @@ MCP 도구 목록:
 - **Frontend**: React 19 + TypeScript + Tailwind CSS
 - **Backend**: Rust (Tauri v2)
 - **아카이브 생성**: Claude Code CLI (`claude --print`)
-- **MCP Server**: Node.js (@modelcontextprotocol/sdk)
