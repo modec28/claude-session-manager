@@ -1,5 +1,7 @@
 # Changelog
 
+[한국어](docs/kr/CHANGELOG.md)
+
 ## [0.1.0] - 2026-04-16
 
 First release.
@@ -29,7 +31,7 @@ First release.
 - Level up every 100 XP
 - Archive count / session count display
 
-### Security (v0.1.0 hardening)
+### Security
 - Path traversal prevention on all Tauri commands (validate_path_component)
 - Canonicalize + starts_with check on delete_archive
 - CSP enabled (default-src 'self')
