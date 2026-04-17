@@ -1,3 +1,26 @@
+# v0.4.1
+
+## 터미널 PATH 버그 수정 + 테스트/훅 기반 정비
+
+Finder/Dock 에서 앱을 실행하면 터미널 패널이 `claude` 를 찾지 못하던 버그를 수정했습니다. GUI 앱은 shell rc 를 읽지 않아 PATH 가 최소값으로만 들어있었는데, 이제 `$SHELL -l -c` 로 login shell 경유로 실행하여 PATH 가 정상 로드됩니다.
+
+이와 함께 pre-commit 훅과 Rust 유닛 테스트를 도입했습니다.
+
+**Fixed**
+- Finder/Dock 실행 시 터미널 `claude` spawn 실패 (PATH 문제)
+
+**Added**
+- Pre-commit 훅 (husky + lint-staged): `tsc --noEmit`, `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` 자동 실행
+- Rust 유닛 테스트 19개 (path traversal, UTF-8 한글 truncation, JSON 추출, archive 파일명 등 순수 함수 위주)
+
+**Changed**
+- `iterm.rs` → `claude_cli.rs` 리네임 (v0.4.0 의존성 제거 후 실제 내용에 맞게)
+
+**Removed**
+- v0.4.0 정리 잔여 데드 코드 (preflight_check, AppleScript 헬퍼, 미사용 상수/필드)
+
+---
+
 # v0.4.0
 
 ## 외부 의존성 제거

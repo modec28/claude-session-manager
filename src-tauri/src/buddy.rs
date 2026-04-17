@@ -105,7 +105,7 @@ fn extract_cwd_from_jsonl(path: &std::path::Path) -> Option<String> {
     let file = fs::File::open(path).ok()?;
     let reader = BufReader::new(file);
 
-    for line in reader.lines().flatten() {
+    for line in reader.lines().map_while(Result::ok) {
         if !line.contains("\"cwd\"") {
             continue;
         }
@@ -133,17 +133,33 @@ struct ArchiveStats {
 fn scan_archives() -> ArchiveStats {
     let home = match dirs::home_dir() {
         Some(h) => h,
-        None => return ArchiveStats { count: 0, total_xp: 0, earliest: None },
+        None => {
+            return ArchiveStats {
+                count: 0,
+                total_xp: 0,
+                earliest: None,
+            }
+        }
     };
     let archives_dir = home.join(ARCHIVES_DIR);
 
     if !archives_dir.exists() {
-        return ArchiveStats { count: 0, total_xp: 0, earliest: None };
+        return ArchiveStats {
+            count: 0,
+            total_xp: 0,
+            earliest: None,
+        };
     }
 
     let entries = match fs::read_dir(&archives_dir) {
         Ok(e) => e,
-        Err(_) => return ArchiveStats { count: 0, total_xp: 0, earliest: None },
+        Err(_) => {
+            return ArchiveStats {
+                count: 0,
+                total_xp: 0,
+                earliest: None,
+            }
+        }
     };
 
     let mut count = 0u32;
@@ -160,13 +176,16 @@ fn scan_archives() -> ArchiveStats {
 
         if let Ok(content) = fs::read_to_string(&path) {
             if let Ok(archive) = serde_json::from_str::<serde_json::Value>(&content) {
-                let task_count = archive.get("tasks")
+                let task_count = archive
+                    .get("tasks")
                     .and_then(|v| v.as_array())
                     .map_or(0, |a| a.len()) as u32;
-                let file_count = archive.get("filesChanged")
+                let file_count = archive
+                    .get("filesChanged")
                     .and_then(|v| v.as_array())
                     .map_or(0, |a| a.len()) as u32;
-                let decision_count = archive.get("decisions")
+                let decision_count = archive
+                    .get("decisions")
                     .and_then(|v| v.as_array())
                     .map_or(0, |a| a.len()) as u32;
 
@@ -182,7 +201,7 @@ fn scan_archives() -> ArchiveStats {
                     .map(|s| s.to_string());
 
                 if let Some(ts) = start {
-                    if earliest.as_ref().map_or(true, |e| ts < *e) {
+                    if earliest.as_ref().is_none_or(|e| ts < *e) {
                         earliest = Some(ts);
                     }
                 }
@@ -190,7 +209,11 @@ fn scan_archives() -> ArchiveStats {
         }
     }
 
-    ArchiveStats { count, total_xp, earliest }
+    ArchiveStats {
+        count,
+        total_xp,
+        earliest,
+    }
 }
 
 fn count_total_sessions() -> usize {

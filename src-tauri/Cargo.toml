@@ -1,6 +1,6 @@
 [package]
 name = "claude-session-manager"
-version = "0.4.0"
+version = "0.4.1"
 description = "Claude Code session manager desktop app"
 authors = ["modec28"]
 license = "MIT"
@@ -27,5 +27,4 @@ dirs = "6"
 tokio = { version = "1", features = ["rt"] }
 portable-pty = "0.9.0"
 lazy_static = "1.5.0"
-shell-words = "1.1.1"
 

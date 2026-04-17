@@ -1,7 +1,7 @@
 {
   "name": "claude-session-manager",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "module",
   "description": "Claude Code session manager desktop app",
   "author": "modec28",
@@ -14,7 +14,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "prepare": "husky"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -35,8 +36,18 @@
     "@types/react-dom": "^19.1.6",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vitejs/plugin-react": "^4.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": "bash -c 'pnpm exec tsc --noEmit'",
+    "src-tauri/src/**/*.rs": [
+      "bash -c 'cd src-tauri && cargo fmt --check'",
+      "bash -c 'cd src-tauri && cargo clippy --quiet -- -D warnings'",
+      "bash -c 'cd src-tauri && cargo test --quiet'"
+    ]
   }
 }

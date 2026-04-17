@@ -66,24 +66,19 @@ pub struct RawEntry {
     #[serde(rename = "type")]
     pub entry_type: Option<String>,
     pub uuid: Option<String>,
-    pub parent_uuid: Option<String>,
     pub timestamp: Option<String>,
     pub message: Option<RawMessage>,
-    pub session_id: Option<String>,
     pub cwd: Option<String>,
     pub slug: Option<String>,
     pub custom_title: Option<String>,
     pub ai_title: Option<String>,
     #[serde(default)]
     pub is_sidechain: bool,
-    pub subtype: Option<String>,
-    pub duration_ms: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawMessage {
-    pub role: Option<String>,
     pub model: Option<String>,
     pub content: Option<serde_json::Value>,
 }

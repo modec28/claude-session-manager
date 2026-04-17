@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.1] - 2026-04-17
+
+### 수정
+- Finder/Dock 에서 앱을 실행했을 때 터미널 패널이 `claude` 를 찾지 못하던 버그 — GUI 앱은 shell rc 를 읽지 않아 PATH 가 `/usr/bin:/bin:/usr/sbin:/sbin` 만 들어있었음. `$SHELL -l -c` 로 감싸 login shell 경유로 실행하여 PATH 가 정상 로드되도록 수정
+
+### 추가
+- Pre-commit 훅: husky + lint-staged 로 변경 파일에 대해 `tsc --noEmit`, `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` 자동 실행
+- Rust 유닛 테스트 19개: `validate_path_component` (path traversal), `truncate_chars` (UTF-8/한글 안전), `dir_name_to_display_path`, `extract_json`, `build_archive_filename`
+
+### 변경
+- `iterm.rs` → `claude_cli.rs` 리네임 (v0.4.0 의존성 제거 후 실제 내용에 맞게)
+- `build_archive_filename` 순수 함수로 추출 (테스트 용이성)
+
+### 제거
+- v0.4.0 정리 이후 남아있던 데드 코드 (preflight_check, AppleScript 헬퍼, 미사용 상수/필드)
+
 ## [0.4.0] - 2026-04-17
 
 ### 제거
