@@ -8,7 +8,7 @@ Claude Code 세션을 관리하는 macOS 데스크톱 앱 (Tauri v2 + React)
 - **세션 뷰어**: 대화 전체 스키마 렌더링 (마크다운, 코드 하이라이팅, tool use/result/thinking 접기)
 - **세션 제목 편집**: 더블클릭으로 커스텀 제목 부여
 - **실행 중 감지**: 현재 터미널에서 실행 중인 세션에 `Running` 뱃지 표시
-- **Resume in iTerm2**: 세션을 iTerm2에서 바로 이어가기
+- **내장 터미널**: 앱 안에서 Claude 세션 실행 (Terminal 버튼 / Cmd+`)
 - **아카이브**: Claude가 세션을 자동 요약하여 JSON으로 저장, Archive 탭에서 타임라인 조회
 - **세션 삭제**: 원본 세션 파일 삭제
 - **버디 위젯**: GitHub 아바타 + 아카이브 기반 XP/레벨 시스템
@@ -16,8 +16,7 @@ Claude Code 세션을 관리하는 macOS 데스크톱 앱 (Tauri v2 + React)
 ## 사전 요구사항
 
 - macOS (Apple Silicon)
-- [iTerm2](https://iterm2.com/) (세션 Resume용)
-- [Claude Code CLI](https://claude.ai/claude-code) (아카이브 기능용)
+- [Claude Code CLI](https://claude.ai/claude-code)
 
 ## 설치
 
@@ -80,7 +79,7 @@ pnpm tauri dev
 
 - 사이드바에서 프로젝트 펼치기 → 세션 클릭 → 대화 스키마 확인
 - 세션 제목 더블클릭 → 커스텀 제목 편집
-- `Resume in iTerm2` → 해당 세션을 iTerm2에서 이어가기
+- `Terminal` → 앱 내장 터미널에서 세션 이어가기
 - `Archive` → Claude가 세션을 요약하여 아카이브에 저장 (원본 유지)
 - `Delete` → 원본 세션 파일 삭제
 

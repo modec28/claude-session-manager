@@ -33,15 +33,6 @@ fn load_session(
     session::load_session(&project_dir_name, &session_id)
 }
 
-#[tauri::command]
-fn resume_in_iterm(cwd: String, session_id: String) -> Result<(), String> {
-    iterm::resume_session(&cwd, &session_id)
-}
-
-#[tauri::command]
-fn new_session_in_iterm(cwd: String) -> Result<(), String> {
-    iterm::new_session(&cwd)
-}
 
 #[tauri::command]
 fn delete_session(project_dir_name: String, session_id: String) -> Result<(), String> {
@@ -109,6 +100,7 @@ fn resize_terminal(terminal_id: String, cols: u16, rows: u16) -> Result<(), Stri
 fn close_terminal(terminal_id: String) -> Result<(), String> {
     terminal::close_terminal(&terminal_id)
 }
+
 
 #[tauri::command]
 fn open_archives_in_finder() -> Result<(), String> {
@@ -424,8 +416,6 @@ pub fn run() {
             list_projects,
             list_sessions,
             load_session,
-            resume_in_iterm,
-            new_session_in_iterm,
             delete_session,
             queue_deletion,
             check_archive_exists,

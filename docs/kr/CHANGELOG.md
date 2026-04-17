@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0] - 2026-04-17
+
+### 제거
+- iTerm2 의존성: 외부 터미널 실행, AppleScript 통합 제거
+- tmux 의존성: `--teammate-mode tmux` 제거
+- MultiTerminal 자동 감지: 팀 디렉토리 폴링, 에이전트 패널 생성 제거
+- `teams.rs` 모듈
+- 팀메이트 서브 세션 사이드바에서 필터링 (`<teammate-message>`로 시작하는 세션)
+
+### 변경
+- Terminal 버튼: `claude --resume` 직접 실행 (tmux 래퍼 없음)
+- 새 세션: `claude` 직접 실행 (tmux 래퍼 없음)
+- 사전 요구사항: macOS + Claude Code CLI만 필요
+
 ## [0.3.0] - 2026-04-17
 
 ### 추가

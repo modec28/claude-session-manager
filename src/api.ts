@@ -18,16 +18,6 @@ export async function fetchSession(
   return invoke("load_session", { projectDirName, sessionId });
 }
 
-export async function resumeInIterm(
-  cwd: string,
-  sessionId: string,
-): Promise<void> {
-  return invoke("resume_in_iterm", { cwd, sessionId });
-}
-
-export async function newSessionInIterm(cwd: string): Promise<void> {
-  return invoke("new_session_in_iterm", { cwd });
-}
 
 export async function deleteSession(
   projectDirName: string,

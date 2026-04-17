@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchSession, resumeInIterm, deleteSession } from "../../api";
+import { fetchSession, deleteSession } from "../../api";
 import type { ConversationMessage, SelectedSession } from "../../types";
 import type { ArchiveJob } from "../../App";
 import MessageBubble from "./MessageBubble";
@@ -63,16 +63,6 @@ export default function SessionView({
     onResumed(selected.sessionId);
   };
 
-  const handleOpenInIterm = async () => {
-    setErrorMessage(null);
-    const cwd = selected.cwd || "/";
-    try {
-      await resumeInIterm(cwd, selected.sessionId);
-      onResumed(selected.sessionId);
-    } catch (error) {
-      setErrorMessage(String(error));
-    }
-  };
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const displayTitle = customTitle || selected.sessionId.slice(0, 8) + "...";
@@ -249,17 +239,6 @@ export default function SessionView({
             }}
           >
             Terminal
-          </button>
-          <button
-            onClick={handleOpenInIterm}
-            className="px-2 py-1 rounded text-[10px] font-medium transition-opacity hover:opacity-80"
-            style={{
-              background: "var(--bg-surface)",
-              color: "var(--text-secondary)",
-            }}
-            title="Open in external iTerm2"
-          >
-            iTerm2
           </button>
           {isArchiving ? (
             <span

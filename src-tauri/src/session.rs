@@ -157,7 +157,9 @@ pub fn list_sessions(project_dir_name: &str) -> Result<Vec<SessionInfo>, String>
 
         match extract_session_metadata(&path) {
             Ok(meta) => {
-                if meta.message_count <= EMPTY_SESSION_THRESHOLD {
+                if meta.message_count <= EMPTY_SESSION_THRESHOLD
+                    || meta.is_teammate_session
+                {
                     continue;
                 }
                 sessions.push(SessionInfo {
@@ -182,6 +184,7 @@ struct SessionMetadata {
     title: String,
     timestamp: String,
     message_count: usize,
+    is_teammate_session: bool,
     cwd: String,
     model: Option<String>,
 }
@@ -197,6 +200,8 @@ fn extract_session_metadata(path: &PathBuf) -> Result<SessionMetadata, String> {
     let mut model: Option<String> = None;
     let mut message_count: usize = 0;
     let mut metadata_complete = false;
+    let mut is_teammate_session = false;
+    let mut first_user_checked = false;
 
     for line in reader.lines() {
         let line = match line {
@@ -210,6 +215,12 @@ fn extract_session_metadata(path: &PathBuf) -> Result<SessionMetadata, String> {
 
         if line.contains("\"type\":\"user\"") || line.contains("\"type\": \"user\"") {
             message_count += 1;
+            if !first_user_checked {
+                first_user_checked = true;
+                if line.contains("<teammate-message") {
+                    is_teammate_session = true;
+                }
+            }
         } else if line.contains("\"type\":\"assistant\"") || line.contains("\"type\": \"assistant\"") {
             message_count += 1;
         }
@@ -295,6 +306,7 @@ fn extract_session_metadata(path: &PathBuf) -> Result<SessionMetadata, String> {
         title: display_title,
         timestamp,
         message_count,
+        is_teammate_session,
         cwd,
         model,
     })
