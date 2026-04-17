@@ -3,7 +3,7 @@ use std::process::Command;
 
 const CLAUDE_KNOWN_PATHS: &[&str] = &["/usr/local/bin/claude", "/opt/homebrew/bin/claude"];
 
-fn resolve_claude_path() -> Result<String, String> {
+pub fn resolve_claude_path() -> Result<String, String> {
     let home = dirs::home_dir().unwrap_or_default();
     let local_bin = home.join(".local/bin/claude");
     if local_bin.exists() {

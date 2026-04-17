@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.4] - 2026-04-17
+
+### 수정
+- `claude` 바이너리가 `~/.local/bin/claude` 에만 있을 때 터미널에서 `command not found: claude` 나던 버그. PTY 래퍼가 `$SHELL -l -c` 를 쓰는데 `-l -c` 조합은 login + non-interactive 라 `.zprofile` 만 읽고 `.zshrc` 는 스킵함. 대부분 사용자는 `.zshrc` 에서 `~/.local/bin` 을 PATH 에 넣으므로 claude 못 찾음. Rust 에서 `claude_cli::resolve_claude_path` 로 풀패스 해석해서 커맨드에 치환하도록 변경.
+
+### 추가
+- 터미널 커맨드 rewriter 유닛 테스트 10개: bare `claude`, claude + 인자, 앞 공백, `claudectl` prefix (매칭 금지), 절대경로 claude (치환 금지), 작은따옴표/공백 포함 경로 shell quoting. 총 29개.
+
 ## [0.4.3] - 2026-04-17
 
 ### 수정
