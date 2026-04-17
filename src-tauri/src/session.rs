@@ -10,9 +10,7 @@ use crate::models::{
 
 const CLAUDE_PROJECTS_DIR: &str = ".claude/projects";
 const TITLE_MAX_CHARS: usize = 57;
-const SAFE_NAME_PATTERN: &str = "^[a-zA-Z0-9._-]+$";
 const EMPTY_SESSION_THRESHOLD: usize = 5;
-const SYSTEM_SESSION_MARKER: &str = "<local-command-caveat>";
 
 pub fn validate_path_input(name: &str) -> Result<(), String> {
     validate_path_component(name)
@@ -80,7 +78,8 @@ fn dir_name_to_display_path(dir_name: &str) -> String {
 
 pub fn list_projects() -> Result<Vec<ProjectInfo>, String> {
     let base = projects_base_path()?;
-    let entries = fs::read_dir(&base).map_err(|err| format!("Failed to read projects dir: {err}"))?;
+    let entries =
+        fs::read_dir(&base).map_err(|err| format!("Failed to read projects dir: {err}"))?;
     let archived_ids = load_archived_session_ids();
 
     let mut projects: Vec<ProjectInfo> = Vec::new();
@@ -157,9 +156,7 @@ pub fn list_sessions(project_dir_name: &str) -> Result<Vec<SessionInfo>, String>
 
         match extract_session_metadata(&path) {
             Ok(meta) => {
-                if meta.message_count <= EMPTY_SESSION_THRESHOLD
-                    || meta.is_teammate_session
-                {
+                if meta.message_count <= EMPTY_SESSION_THRESHOLD || meta.is_teammate_session {
                     continue;
                 }
                 sessions.push(SessionInfo {
@@ -221,7 +218,9 @@ fn extract_session_metadata(path: &PathBuf) -> Result<SessionMetadata, String> {
                     is_teammate_session = true;
                 }
             }
-        } else if line.contains("\"type\":\"assistant\"") || line.contains("\"type\": \"assistant\"") {
+        } else if line.contains("\"type\":\"assistant\"")
+            || line.contains("\"type\": \"assistant\"")
+        {
             message_count += 1;
         }
 
@@ -229,8 +228,7 @@ fn extract_session_metadata(path: &PathBuf) -> Result<SessionMetadata, String> {
             continue;
         }
 
-        let needs_parse =
-            (timestamp.is_empty() && line.contains("\"type\":\"user\""))
+        let needs_parse = (timestamp.is_empty() && line.contains("\"type\":\"user\""))
             || (timestamp.is_empty() && line.contains("\"type\": \"user\""))
             || (model.is_none() && line.contains("\"assistant\""))
             || line.contains("custom-title")
@@ -287,10 +285,8 @@ fn extract_session_metadata(path: &PathBuf) -> Result<SessionMetadata, String> {
             _ => {}
         }
 
-        metadata_complete = !timestamp.is_empty()
-            && !cwd.is_empty()
-            && model.is_some()
-            && title.is_some();
+        metadata_complete =
+            !timestamp.is_empty() && !cwd.is_empty() && model.is_some() && title.is_some();
     }
 
     let display_title = title.unwrap_or_else(|| {
@@ -332,7 +328,7 @@ fn extract_first_user_text(path: &PathBuf) -> String {
     };
     let reader = BufReader::new(file);
 
-    for line in reader.lines().flatten() {
+    for line in reader.lines().map_while(Result::ok) {
         let entry: RawEntry = match serde_json::from_str(&line) {
             Ok(e) => e,
             Err(_) => continue,
@@ -411,9 +407,8 @@ pub fn load_session(
 
         match entry_type {
             "user" => {
-                let content_blocks = parse_content_blocks(
-                    entry.message.as_ref().and_then(|m| m.content.as_ref()),
-                );
+                let content_blocks =
+                    parse_content_blocks(entry.message.as_ref().and_then(|m| m.content.as_ref()));
                 if content_blocks.is_empty() {
                     continue;
                 }
@@ -489,7 +484,10 @@ fn parse_content_blocks(content: Option<&serde_json::Value>) -> Vec<ContentBlock
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string(),
-                        input: block.get("input").cloned().unwrap_or(serde_json::Value::Null),
+                        input: block
+                            .get("input")
+                            .cloned()
+                            .unwrap_or(serde_json::Value::Null),
                     }),
                     "tool_result" => Some(ContentBlock::ToolResult {
                         tool_use_id: block
@@ -534,8 +532,7 @@ pub fn delete_session(project_dir_name: &str, session_id: &str) -> Result<(), St
         return Err(format!("Session file not found: {session_id}"));
     }
 
-    fs::remove_file(&session_path)
-        .map_err(|err| format!("Failed to delete session: {err}"))?;
+    fs::remove_file(&session_path).map_err(|err| format!("Failed to delete session: {err}"))?;
 
     let session_dir = base.join(project_dir_name).join(session_id);
     if session_dir.is_dir() {
@@ -575,8 +572,7 @@ pub fn queue_for_deletion(
     let filepath = pending_dir.join(format!("{session_id}.json"));
     let content = serde_json::to_string_pretty(&pending)
         .map_err(|err| format!("Failed to serialize pending entry: {err}"))?;
-    fs::write(&filepath, content)
-        .map_err(|err| format!("Failed to write pending entry: {err}"))?;
+    fs::write(&filepath, content).map_err(|err| format!("Failed to write pending entry: {err}"))?;
 
     Ok(())
 }
@@ -589,9 +585,71 @@ pub fn has_archive(session_id: &str) -> Result<bool, String> {
         return Ok(false);
     }
 
-    let entries = fs::read_dir(&archives_dir)
-        .map_err(|err| format!("Failed to read archives: {err}"))?;
-
     let archived_ids = load_archived_session_ids();
     Ok(archived_ids.contains(session_id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_path_component_accepts_safe_name() {
+        assert!(validate_path_component("session-abc_123.jsonl").is_ok());
+    }
+
+    #[test]
+    fn validate_path_component_rejects_parent_traversal() {
+        assert!(validate_path_component("..").is_err());
+        assert!(validate_path_component("foo/../bar").is_err());
+        assert!(validate_path_component("foo..bar").is_err());
+    }
+
+    #[test]
+    fn validate_path_component_rejects_separators() {
+        assert!(validate_path_component("foo/bar").is_err());
+        assert!(validate_path_component("foo\\bar").is_err());
+    }
+
+    #[test]
+    fn validate_path_component_rejects_empty() {
+        assert!(validate_path_component("").is_err());
+    }
+
+    #[test]
+    fn truncate_chars_preserves_short_text() {
+        assert_eq!(truncate_chars("short", 10), "short");
+    }
+
+    #[test]
+    fn truncate_chars_truncates_with_ellipsis() {
+        assert_eq!(truncate_chars("abcdefghij", 5), "abcde...");
+    }
+
+    #[test]
+    fn truncate_chars_counts_unicode_scalars_not_bytes() {
+        let korean = "한글테스트입니다";
+        assert_eq!(korean.chars().count(), 8);
+        assert_eq!(truncate_chars(korean, 3), "한글테...");
+    }
+
+    #[test]
+    fn truncate_chars_handles_multibyte_boundary_safely() {
+        let mixed = "abc한글def";
+        let result = truncate_chars(mixed, 4);
+        assert_eq!(result, "abc한...");
+    }
+
+    #[test]
+    fn dir_name_to_display_path_converts_dashes() {
+        assert_eq!(
+            dir_name_to_display_path("-Users-grant-project"),
+            "/Users/grant/project"
+        );
+    }
+
+    #[test]
+    fn dir_name_to_display_path_handles_no_leading_dash() {
+        assert_eq!(dir_name_to_display_path("tmp-x"), "/tmp/x");
+    }
 }

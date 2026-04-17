@@ -49,8 +49,8 @@ pub fn list_archives() -> Result<Vec<ArchiveEntry>, String> {
         return Ok(Vec::new());
     }
 
-    let entries = fs::read_dir(&dir)
-        .map_err(|err| format!("Failed to read archives dir: {err}"))?;
+    let entries =
+        fs::read_dir(&dir).map_err(|err| format!("Failed to read archives dir: {err}"))?;
 
     let mut archives: Vec<ArchiveEntry> = Vec::new();
 
@@ -70,10 +70,7 @@ pub fn list_archives() -> Result<Vec<ArchiveEntry>, String> {
             Err(_) => continue,
         };
 
-        archive.filename = entry
-            .file_name()
-            .to_string_lossy()
-            .to_string();
+        archive.filename = entry.file_name().to_string_lossy().to_string();
 
         archives.push(archive);
     }
@@ -105,6 +102,5 @@ pub fn delete_archive(filename: &str) -> Result<(), String> {
         return Err("Invalid archive path".to_string());
     }
 
-    fs::remove_file(&canonical)
-        .map_err(|err| format!("Failed to delete archive: {err}"))
+    fs::remove_file(&canonical).map_err(|err| format!("Failed to delete archive: {err}"))
 }

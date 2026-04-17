@@ -2,6 +2,22 @@
 
 [한국어](docs/kr/CHANGELOG.md)
 
+## [0.4.1] - 2026-04-17
+
+### Fixed
+- Terminal panel fails to spawn `claude` when app launched from Finder/Dock — PTY child inherited minimal GUI PATH without shell rc. Commands now run through `$SHELL -l -c` so login shell populates PATH
+
+### Added
+- Pre-commit hook: husky + lint-staged running `tsc --noEmit`, `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` on changed files
+- Rust unit tests (19 total): `validate_path_component`, `truncate_chars` (UTF-8/Korean safe), `dir_name_to_display_path`, `extract_json`, `build_archive_filename`
+
+### Changed
+- Renamed `iterm.rs` → `claude_cli.rs` (reflects actual contents after v0.4.0 dependency removal)
+- `build_archive_filename` extracted into pure helper for testability
+
+### Removed
+- Dead code left over from v0.4.0 iTerm/tmux cleanup (preflight_check, AppleScript helpers, unused constants/fields)
+
 ## [0.4.0] - 2026-04-17
 
 ### Removed

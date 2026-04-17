@@ -14,23 +14,16 @@ fn load_titles_map() -> Result<HashMap<String, String>, String> {
     if !path.exists() {
         return Ok(HashMap::new());
     }
-    let content = fs::read_to_string(&path)
-        .map_err(|err| format!("Failed to read titles file: {err}"))?;
-    serde_json::from_str(&content)
-        .map_err(|err| format!("Failed to parse titles file: {err}"))
+    let content =
+        fs::read_to_string(&path).map_err(|err| format!("Failed to read titles file: {err}"))?;
+    serde_json::from_str(&content).map_err(|err| format!("Failed to parse titles file: {err}"))
 }
 
 fn save_titles_map(titles: &HashMap<String, String>) -> Result<(), String> {
     let path = titles_path()?;
     let content = serde_json::to_string_pretty(titles)
         .map_err(|err| format!("Failed to serialize titles: {err}"))?;
-    fs::write(&path, content)
-        .map_err(|err| format!("Failed to write titles file: {err}"))
-}
-
-pub fn custom_title(session_id: &str) -> Result<Option<String>, String> {
-    let titles = load_titles_map()?;
-    Ok(titles.get(session_id).cloned())
+    fs::write(&path, content).map_err(|err| format!("Failed to write titles file: {err}"))
 }
 
 pub fn set_custom_title(session_id: &str, title: &str) -> Result<(), String> {

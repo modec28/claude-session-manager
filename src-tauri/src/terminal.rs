@@ -40,13 +40,12 @@ pub fn spawn_terminal(
         })
         .map_err(|err| format!("Failed to open PTY: {err}"))?;
 
-    let args = shell_words::split(&command)
-        .map_err(|err| format!("Failed to parse command: {err}"))?;
+    let login_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
-    let mut cmd = CommandBuilder::new(&args[0]);
-    for arg in &args[1..] {
-        cmd.arg(arg);
-    }
+    let mut cmd = CommandBuilder::new(&login_shell);
+    cmd.arg("-l");
+    cmd.arg("-c");
+    cmd.arg(&command);
     cmd.cwd(&cwd);
     cmd.env_remove("ITERM_SESSION_ID");
     cmd.env_remove("ITERM_PROFILE");
@@ -90,24 +89,15 @@ pub fn spawn_terminal(
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => {
-                    let _ = app_handle.emit(
-                        &format!("terminal-exit-{read_terminal_id}"),
-                        (),
-                    );
+                    let _ = app_handle.emit(&format!("terminal-exit-{read_terminal_id}"), ());
                     break;
                 }
                 Ok(n) => {
                     let data: Vec<u8> = buffer[..n].to_vec();
-                    let _ = app_handle.emit(
-                        &format!("terminal-output-{read_terminal_id}"),
-                        data,
-                    );
+                    let _ = app_handle.emit(&format!("terminal-output-{read_terminal_id}"), data);
                 }
                 Err(_) => {
-                    let _ = app_handle.emit(
-                        &format!("terminal-exit-{read_terminal_id}"),
-                        (),
-                    );
+                    let _ = app_handle.emit(&format!("terminal-exit-{read_terminal_id}"), ());
                     break;
                 }
             }
