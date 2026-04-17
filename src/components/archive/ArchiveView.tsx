@@ -28,6 +28,8 @@ export default function ArchiveView() {
 
     const query = searchQuery.toLowerCase();
     return (
+      archive.sessionId.toLowerCase().includes(query) ||
+      archive.project.toLowerCase().includes(query) ||
       archive.title.toLowerCase().includes(query) ||
       archive.summary.toLowerCase().includes(query) ||
       archive.tasks.some((task) => task.toLowerCase().includes(query)) ||
@@ -88,6 +90,7 @@ export default function ArchiveView() {
         <div className="flex gap-2">
           <input
             type="text"
+            id="archive-search"
             placeholder="Search archives..."
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}

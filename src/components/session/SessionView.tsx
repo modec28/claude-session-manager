@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchSession, resumeInIterm, deleteSession } from "../../api";
 import type { ConversationMessage, SelectedSession } from "../../types";
 import type { ArchiveJob } from "../../App";
@@ -28,7 +28,7 @@ export default function SessionView({
   const [showSidechain, setShowSidechain] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -109,17 +109,24 @@ export default function SessionView({
     }
   };
 
-  const handleTitleDoubleClick = () => {
-    setTitleDraft(customTitle || "");
+  const handleStartRename = () => {
     setEditingTitle(true);
+    setTimeout(() => {
+      if (titleInputRef.current) {
+        titleInputRef.current.value = customTitle || "";
+        titleInputRef.current.focus();
+      }
+    }, 0);
   };
 
   const handleTitleSubmit = async () => {
-    await onTitleChange(selected.sessionId, titleDraft.trim());
+    const value = titleInputRef.current?.value.trim() ?? "";
+    await onTitleChange(selected.sessionId, value);
     setEditingTitle(false);
   };
 
   const handleTitleKeyDown = (event: React.KeyboardEvent) => {
+    event.stopPropagation();
     if (event.key === "Enter") {
       handleTitleSubmit();
     } else if (event.key === "Escape") {
@@ -138,29 +145,51 @@ export default function SessionView({
       >
         <div className="flex flex-col gap-0.5 min-w-0 flex-1 mr-3">
           {editingTitle ? (
-            <input
-              autoFocus
-              value={titleDraft}
-              onChange={(event) => setTitleDraft(event.target.value)}
-              onBlur={handleTitleSubmit}
-              onKeyDown={handleTitleKeyDown}
-              placeholder="Enter session title..."
-              className="text-xs font-bold px-1 py-0.5 rounded outline-none"
-              style={{
-                background: "var(--bg-primary)",
-                color: "var(--text-primary)",
-                border: "1px solid var(--accent-blue)",
-              }}
-            />
+            <div className="flex items-center gap-1">
+              <input
+                ref={titleInputRef}
+                defaultValue={customTitle || ""}
+                onKeyDown={handleTitleKeyDown}
+                placeholder="Enter session title..."
+                className="flex-1 text-xs font-bold px-1 py-0.5 rounded outline-none"
+                style={{
+                  background: "var(--bg-primary)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--accent-blue)",
+                }}
+              />
+              <button
+                onClick={handleTitleSubmit}
+                className="text-[10px] px-1.5 py-0.5 rounded"
+                style={{ background: "var(--accent-blue)", color: "var(--bg-primary)" }}
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditingTitle(false)}
+                className="text-[10px] px-1.5 py-0.5 rounded"
+                style={{ background: "var(--bg-surface)", color: "var(--text-secondary)" }}
+              >
+                Cancel
+              </button>
+            </div>
           ) : (
-            <span
-              onDoubleClick={handleTitleDoubleClick}
-              className="text-xs font-bold cursor-pointer truncate"
-              style={{ color: "var(--text-primary)" }}
-              title="Double-click to rename"
-            >
-              {displayTitle}
-            </span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className="text-xs font-bold truncate"
+                style={{ color: "var(--text-primary)" }}
+                title={displayTitle}
+              >
+                {displayTitle}
+              </span>
+              <button
+                onClick={handleStartRename}
+                className="text-[10px] px-1 py-0.5 rounded shrink-0 hover:opacity-70"
+                style={{ background: "var(--bg-surface)", color: "var(--text-muted)" }}
+              >
+                Rename
+              </button>
+            </div>
           )}
           <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
             {selected.cwd}

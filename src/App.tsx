@@ -9,8 +9,9 @@ import {
 import Sidebar from "./components/sidebar/Sidebar";
 import SessionView from "./components/session/SessionView";
 import ArchiveView from "./components/archive/ArchiveView";
+import HistoryView from "./components/history/HistoryView";
 
-type AppTab = "sessions" | "archive";
+type AppTab = "sessions" | "archive" | "history";
 
 export interface ArchiveJob {
   sessionId: string;
@@ -28,9 +29,45 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [runningSessions, setRunningSessions] = useState<Set<string>>(new Set());
   const [archiveJobs, setArchiveJobs] = useState<Record<string, ArchiveJob>>({});
+  const [sidebarVisible, setSidebarVisible] = useState(true);
 
   useEffect(() => {
     fetchCustomTitles().then(setCustomTitles).catch(console.error);
+  }, []);
+
+  const TAB_ORDER: AppTab[] = ["sessions", "archive", "history"];
+
+  useEffect(() => {
+    const handleGlobalKeys = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+
+      if (event.key === "Tab" && !isInput) {
+        event.preventDefault();
+        setActiveTab((prev) => {
+          const currentIndex = TAB_ORDER.indexOf(prev);
+          const nextIndex = event.shiftKey
+            ? (currentIndex - 1 + TAB_ORDER.length) % TAB_ORDER.length
+            : (currentIndex + 1) % TAB_ORDER.length;
+          return TAB_ORDER[nextIndex];
+        });
+      } else if ((event.metaKey || event.ctrlKey) && event.code === "KeyB") {
+        event.preventDefault();
+        setSidebarVisible((prev) => !prev);
+      } else if ((event.metaKey || event.ctrlKey) && event.key === "f") {
+        event.preventDefault();
+        setActiveTab((currentTab) => {
+          if (currentTab === "archive") {
+            setTimeout(() => document.getElementById("archive-search")?.focus(), 0);
+          } else {
+            setTimeout(() => document.getElementById("sidebar-search")?.focus(), 0);
+          }
+          return currentTab;
+        });
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeys);
+    return () => window.removeEventListener("keydown", handleGlobalKeys);
   }, []);
 
   const markSessionRunning = useCallback((sessionId: string) => {
@@ -86,7 +123,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen" style={{ background: "var(--bg-primary)" }}>
-      {activeTab === "sessions" && (
+      <div style={{ display: sidebarVisible ? "flex" : "none" }}>
         <Sidebar
           selected={selected}
           onSelect={setSelected}
@@ -94,7 +131,21 @@ export default function App() {
           refreshKey={refreshKey}
           runningSessions={runningSessions}
         />
-      )}
+      </div>
+      <button
+        onClick={() => setSidebarVisible((prev) => !prev)}
+        className="shrink-0 flex items-center justify-center w-4 hover:opacity-70 transition-opacity"
+        style={{
+          background: "var(--bg-secondary)",
+          color: "var(--text-muted)",
+          borderRight: sidebarVisible ? "none" : "1px solid var(--border-color)",
+          borderLeft: sidebarVisible ? "1px solid var(--border-color)" : "none",
+          fontSize: "10px",
+        }}
+        title={`${sidebarVisible ? "Hide" : "Show"} sidebar (Cmd+B)`}
+      >
+        {sidebarVisible ? "\u25C0" : "\u25B6"}
+      </button>
       <div className="flex flex-col flex-1 min-w-0">
         <nav
           className="flex items-center gap-0 shrink-0 border-b"
@@ -111,9 +162,15 @@ export default function App() {
           <TabButton
             label="Archive"
             active={activeTab === "archive"}
-            onClick={() => { setActiveTab("archive"); setSelected(null); }}
+            onClick={() => setActiveTab("archive")}
+          />
+          <TabButton
+            label="History"
+            active={activeTab === "history"}
+            onClick={() => setActiveTab("history")}
           />
           <ArchiveStatus jobs={archiveJobs} />
+          <HelpTooltip />
         </nav>
         <div className="flex-1 min-h-0">
           {activeTab === "sessions" ? (
@@ -140,8 +197,10 @@ export default function App() {
                 </div>
               </div>
             )
-          ) : (
+          ) : activeTab === "archive" ? (
             <ArchiveView />
+          ) : (
+            <HistoryView />
           )}
         </div>
       </div>
@@ -212,6 +271,56 @@ function ArchiveStatus({ jobs }: { jobs: Record<string, ArchiveJob> }) {
           {job.title || job.sessionId.slice(0, 8)} failed
         </div>
       ))}
+    </div>
+  );
+}
+
+function HelpTooltip() {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="relative mr-3">
+      <button
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+        style={{
+          background: "var(--bg-surface)",
+          color: "var(--text-muted)",
+        }}
+      >
+        ?
+      </button>
+      {visible && (
+        <div
+          className="absolute right-0 top-7 z-50 p-3 rounded-lg shadow-lg text-[10px] whitespace-nowrap"
+          style={{
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border-color)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          <div className="font-bold mb-2" style={{ color: "var(--text-primary)" }}>
+            Keyboard Shortcuts
+          </div>
+          <table className="border-separate" style={{ borderSpacing: "8px 4px" }}>
+            <tbody>
+              <tr><td style={{ color: "var(--accent-blue)" }}>Tab / Shift+Tab</td><td>Switch tabs</td></tr>
+              <tr><td style={{ color: "var(--accent-blue)" }}>Cmd+B</td><td>Toggle sidebar</td></tr>
+              <tr><td style={{ color: "var(--accent-blue)" }}>Cmd+F</td><td>Search (Archive tab)</td></tr>
+              <tr><td colSpan={2} className="pt-2 font-bold" style={{ color: "var(--text-primary)" }}>Session View</td></tr>
+              <tr><td style={{ color: "var(--accent-green)" }}>A / ㅁ</td><td>Archive</td></tr>
+              <tr><td style={{ color: "var(--accent-red)" }}>D / ㅇ</td><td>Delete</td></tr>
+              <tr><td style={{ color: "var(--accent-green)" }}>Y / ㅛ</td><td>Confirm delete</td></tr>
+              <tr><td style={{ color: "var(--accent-peach)" }}>N / ㅜ / Esc</td><td>Cancel delete</td></tr>
+              <tr><td colSpan={2} className="pt-2 font-bold" style={{ color: "var(--text-primary)" }}>Sidebar</td></tr>
+              <tr><td style={{ color: "var(--accent-blue)" }}>Up / Down</td><td>Navigate</td></tr>
+              <tr><td style={{ color: "var(--accent-blue)" }}>Enter / Right</td><td>Select / Expand</td></tr>
+              <tr><td style={{ color: "var(--accent-blue)" }}>Left</td><td>Collapse / Parent</td></tr>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
