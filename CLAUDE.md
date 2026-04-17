@@ -13,7 +13,11 @@ macOS Tauri v2 데스크탑 앱. `~/.claude/projects/*.jsonl` 의 Claude Code �
 ## 반복되는 함정 (이 프로젝트에서 실제로 밟았던 것들)
 
 ### macOS GUI 앱 PATH
-Finder/Dock 에서 띄우면 PATH 가 `/usr/bin:/bin:/usr/sbin:/sbin` 만 들어있다. `.zshrc` 안 읽힘. 서브프로세스로 `claude` 같은 유저 바이너리 실행하려면 반드시 `$SHELL -l -c "<cmd>"` 로 감싸 login shell 경유. `src-tauri/src/terminal.rs:43` 참고.
+Finder/Dock 에서 띄우면 PATH 가 `/usr/bin:/bin:/usr/sbin:/sbin` 만 들어있다. 서브프로세스로 `claude` 같은 유저 바이너리 실행시:
+
+1. `$SHELL -l -c "<cmd>"` 는 **불충분**. `-l -c` 조합은 login + non-interactive 라 `.zprofile` 만 읽고 `.zshrc` 안 읽음. 대부분 사용자는 `.zshrc` 에서 `~/.local/bin` 을 PATH 에 추가하는데 이게 안 읽힘 → `command not found` (v0.4.1 에서 한 번 고친 줄 알았다가 v0.4.4 에서 재수정).
+2. **제대로 된 해법**: Rust 에서 `claude_cli::resolve_claude_path()` 로 claude 바이너리 풀패스 찾고, `terminal.rs::substitute_claude_binary` 로 커맨드에 치환해서 shell 에 넘김.
+3. rewriter 유닛 테스트 (`substitute_*`, `shell_quote_*`) 반드시 유지 — 이 버그 두 번 재발.
 
 ### UTF-8 바이트 슬라이싱 금지
 한글 포함 문자열 truncation 에서 `&s[..n]` 쓰면 panic. 항상 `.chars().take(n).collect()` 사용. `session.rs::truncate_chars` 참고. 한글 세션 제목이 6400개+ 섞여있어서 이거 빠지면 바로 깨짐.

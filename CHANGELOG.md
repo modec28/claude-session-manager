@@ -2,6 +2,14 @@
 
 [한국어](docs/kr/CHANGELOG.md)
 
+## [0.4.4] - 2026-04-17
+
+### Fixed
+- Terminal failed to find `claude` when the binary lived only in `~/.local/bin/claude`. Our PTY wrapper used `$SHELL -l -c`, but `-l -c` is a login + non-interactive combination that sources `.zprofile` only — `.zshrc` (where most users set `~/.local/bin` in PATH) is skipped. Now we resolve the claude binary path in Rust (`claude_cli::resolve_claude_path`) and substitute the full path into the command before handing it to the shell.
+
+### Added
+- 10 new Rust unit tests for the terminal command rewriter: bare `claude`, claude with args, leading whitespace, `claudectl` prefix (must not match), absolute-path claude (must not rewrite), shell-quoting of paths with single quotes or spaces. Total suite: 29 tests.
+
 ## [0.4.3] - 2026-04-17
 
 ### Fixed

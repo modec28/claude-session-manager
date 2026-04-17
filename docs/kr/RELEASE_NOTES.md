@@ -1,3 +1,19 @@
+# v0.4.4
+
+## `claude not found` 버그 수정 + 테스트 강화
+
+**PATH 버그 재발** — v0.4.1 에서 `$SHELL -l -c` 로 감싸서 해결했다고 생각했던 PATH 문제가 특정 환경에서 재발했습니다. `claude` 가 `~/.local/bin` 에만 있고 그 경로가 `.zshrc` 에서 PATH 에 들어가는 경우, login shell 의 non-interactive 모드는 `.zshrc` 를 안 읽어서 claude 를 못 찾습니다. Rust 에서 claude 바이너리 풀패스를 미리 해석해서 커맨드에 치환하는 방식으로 근본 수정.
+
+**테스트 빡빡하게** — 동일 버그 재발 방지 위해 터미널 커맨드 rewriter 에 10개 유닛 테스트 추가 (bare/인자/공백/prefix/절대경로/쉘 quoting). 총 29개.
+
+**Fixed**
+- `~/.local/bin/claude` 만 있을 때 터미널에서 `command not found` 나던 버그 (Rust 에서 풀패스 해석)
+
+**Added**
+- 터미널 커맨드 rewriter 유닛 테스트 10개
+
+---
+
 # v0.4.3
 
 ## Shift+Enter 개행 + 앱 종료시 PTY 정리

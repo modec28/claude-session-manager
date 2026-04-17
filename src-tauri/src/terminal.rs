@@ -44,11 +44,12 @@ pub fn spawn_terminal(
         .map_err(|err| format!("Failed to open PTY: {err}"))?;
 
     let login_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    let resolved_command = rewrite_claude_command(&command);
 
     let mut cmd = CommandBuilder::new(&login_shell);
     cmd.arg("-l");
     cmd.arg("-c");
-    cmd.arg(&command);
+    cmd.arg(&resolved_command);
     cmd.cwd(&cwd);
     cmd.env_remove("ITERM_SESSION_ID");
     cmd.env_remove("ITERM_PROFILE");
@@ -183,6 +184,32 @@ pub fn shutdown_all_terminals() {
     }
 }
 
+fn rewrite_claude_command(command: &str) -> String {
+    match crate::claude_cli::resolve_claude_path() {
+        Ok(path) => substitute_claude_binary(command, &path),
+        Err(_) => command.to_string(),
+    }
+}
+
+fn substitute_claude_binary(command: &str, claude_path: &str) -> String {
+    let trimmed = command.trim_start();
+    let quoted = shell_quote_single(claude_path);
+
+    if trimmed == "claude" {
+        return quoted;
+    }
+
+    match trimmed.strip_prefix("claude ") {
+        Some(rest) => format!("{quoted} {rest}"),
+        None => command.to_string(),
+    }
+}
+
+fn shell_quote_single(path: &str) -> String {
+    let escaped = path.replace('\'', "'\\''");
+    format!("'{escaped}'")
+}
+
 fn graceful_kill(mut session: PtySession) {
     drop(session.writer);
     drop(session.master);
@@ -199,4 +226,85 @@ fn graceful_kill(mut session: PtySession) {
 
     let _ = session.child.kill();
     let _ = session.child.wait();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FAKE_PATH: &str = "/Users/grant/.local/bin/claude";
+
+    #[test]
+    fn substitute_replaces_bare_claude() {
+        assert_eq!(
+            substitute_claude_binary("claude", FAKE_PATH),
+            "'/Users/grant/.local/bin/claude'"
+        );
+    }
+
+    #[test]
+    fn substitute_replaces_claude_with_args() {
+        assert_eq!(
+            substitute_claude_binary("claude --resume abc123", FAKE_PATH),
+            "'/Users/grant/.local/bin/claude' --resume abc123"
+        );
+    }
+
+    #[test]
+    fn substitute_preserves_trailing_flags_and_quoted_args() {
+        assert_eq!(
+            substitute_claude_binary("claude --name \"feature/login\"", FAKE_PATH),
+            "'/Users/grant/.local/bin/claude' --name \"feature/login\""
+        );
+    }
+
+    #[test]
+    fn substitute_trims_leading_whitespace_before_matching() {
+        assert_eq!(
+            substitute_claude_binary("   claude --resume x", FAKE_PATH),
+            "'/Users/grant/.local/bin/claude' --resume x"
+        );
+    }
+
+    #[test]
+    fn substitute_does_not_touch_non_claude_commands() {
+        assert_eq!(
+            substitute_claude_binary("echo hello", FAKE_PATH),
+            "echo hello"
+        );
+    }
+
+    #[test]
+    fn substitute_does_not_match_claude_as_prefix_substring() {
+        assert_eq!(
+            substitute_claude_binary("claudectl --help", FAKE_PATH),
+            "claudectl --help"
+        );
+    }
+
+    #[test]
+    fn substitute_does_not_match_absolute_path_claude() {
+        assert_eq!(
+            substitute_claude_binary("/usr/local/bin/claude --resume x", FAKE_PATH),
+            "/usr/local/bin/claude --resume x"
+        );
+    }
+
+    #[test]
+    fn shell_quote_wraps_in_single_quotes() {
+        assert_eq!(shell_quote_single("/tmp/foo"), "'/tmp/foo'");
+    }
+
+    #[test]
+    fn shell_quote_escapes_embedded_single_quote() {
+        assert_eq!(shell_quote_single("/tmp/it's"), "'/tmp/it'\\''s'");
+    }
+
+    #[test]
+    fn shell_quote_preserves_spaces() {
+        assert_eq!(
+            shell_quote_single("/Users/me/My Apps/claude"),
+            "'/Users/me/My Apps/claude'"
+        );
+    }
 }
