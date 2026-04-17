@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const SIDEBAR_POLL_INTERVAL_MS = 10000;
-import { fetchProjects, fetchSessions, newSessionInIterm } from "../../api";
+import { fetchProjects, fetchSessions } from "../../api";
 import type { ProjectInfo, SelectedSession, SessionInfo } from "../../types";
 import BuddyWidget from "./BuddyWidget";
 
 interface SidebarProps {
   selected: SelectedSession | null;
   onSelect: (session: SelectedSession) => void;
+  onNewTerminal: (cwd: string) => void;
   customTitles: Record<string, string>;
   refreshKey: number;
   runningSessions: Set<string>;
@@ -22,6 +23,7 @@ interface FlatItem {
 export default function Sidebar({
   selected,
   onSelect,
+  onNewTerminal,
   customTitles,
   refreshKey,
   runningSessions,
@@ -29,7 +31,7 @@ export default function Sidebar({
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorMessage] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [projectSessions, setProjectSessions] = useState<Record<string, SessionInfo[]>>({});
@@ -187,13 +189,8 @@ export default function Sidebar({
     }
   }, [focusIndex]);
 
-  const handleNewSession = async () => {
-    setErrorMessage(null);
-    try {
-      await newSessionInIterm(selected?.cwd || "~");
-    } catch (error) {
-      setErrorMessage(String(error));
-    }
+  const handleNewSession = () => {
+    onNewTerminal(selected?.cwd || "~");
   };
 
   return (

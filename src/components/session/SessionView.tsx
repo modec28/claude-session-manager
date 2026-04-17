@@ -3,6 +3,7 @@ import { fetchSession, resumeInIterm, deleteSession } from "../../api";
 import type { ConversationMessage, SelectedSession } from "../../types";
 import type { ArchiveJob } from "../../App";
 import MessageBubble from "./MessageBubble";
+import TerminalPanel from "../terminal/TerminalPanel";
 
 interface SessionViewProps {
   selected: SelectedSession;
@@ -11,6 +12,7 @@ interface SessionViewProps {
   onSessionDeleted: () => void;
   onArchive: (projectDirName: string, sessionId: string, cwd: string, title: string) => void;
   onResumed: (sessionId: string) => void;
+  onStopped: (sessionId: string) => void;
   archiveJob: ArchiveJob | null;
 }
 
@@ -21,6 +23,7 @@ export default function SessionView({
   onSessionDeleted,
   onArchive,
   onResumed,
+  onStopped,
   archiveJob,
 }: SessionViewProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -29,10 +32,14 @@ export default function SessionView({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalId, setTerminalId] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setErrorMessage(null);
+    setTerminalOpen(false);
+    setTerminalId(null);
     fetchSession(selected.projectDirName, selected.sessionId)
       .then(setMessages)
       .catch(console.error)
@@ -49,7 +56,14 @@ export default function SessionView({
     ? messages
     : messages.filter((msg) => !msg.isSidechain);
 
-  const handleResume = async () => {
+  const handleOpenTerminal = () => {
+    const newId = `term-${selected.sessionId}-${Date.now()}`;
+    setTerminalId(newId);
+    setTerminalOpen(true);
+    onResumed(selected.sessionId);
+  };
+
+  const handleOpenInIterm = async () => {
     setErrorMessage(null);
     const cwd = selected.cwd || "/";
     try {
@@ -71,6 +85,17 @@ export default function SessionView({
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 
       const code = event.code;
+
+      if ((event.metaKey || event.ctrlKey) && event.key === "`") {
+        event.preventDefault();
+        if (terminalOpen) {
+          setTerminalOpen(false);
+          setTerminalId(null);
+        } else {
+          handleOpenTerminal();
+        }
+        return;
+      }
 
       if (code === "KeyA" && !isArchiving) {
         event.preventDefault();
@@ -182,6 +207,13 @@ export default function SessionView({
               >
                 {displayTitle}
               </span>
+              <span
+                className="text-[9px] font-mono shrink-0"
+                style={{ color: "var(--text-muted)" }}
+                title={selected.sessionId}
+              >
+                {selected.sessionId.slice(0, 8)}
+              </span>
               <button
                 onClick={handleStartRename}
                 className="text-[10px] px-1 py-0.5 rounded shrink-0 hover:opacity-70"
@@ -209,14 +241,25 @@ export default function SessionView({
             Sidechain
           </label>
           <button
-            onClick={handleResume}
+            onClick={handleOpenTerminal}
             className="px-3 py-1 rounded text-xs font-medium transition-opacity hover:opacity-80"
             style={{
               background: "var(--accent-green)",
               color: "var(--bg-primary)",
             }}
           >
-            Resume in iTerm2
+            Terminal
+          </button>
+          <button
+            onClick={handleOpenInIterm}
+            className="px-2 py-1 rounded text-[10px] font-medium transition-opacity hover:opacity-80"
+            style={{
+              background: "var(--bg-surface)",
+              color: "var(--text-secondary)",
+            }}
+            title="Open in external iTerm2"
+          >
+            iTerm2
           </button>
           {isArchiving ? (
             <span
@@ -295,7 +338,10 @@ export default function SessionView({
           </button>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div
+        className="overflow-y-auto p-4 space-y-3"
+        style={{ flex: terminalOpen ? "1 1 50%" : "1 1 100%", minHeight: 0 }}
+      >
         {loading ? (
           <div className="text-center py-8" style={{ color: "var(--text-muted)" }}>
             Loading session...
@@ -310,6 +356,20 @@ export default function SessionView({
           ))
         )}
       </div>
+      {terminalOpen && terminalId && (
+        <div style={{ flex: "1 1 50%", minHeight: 0 }}>
+          <TerminalPanel
+            terminalId={terminalId}
+            cwd={selected.cwd || "/"}
+            command={`claude --resume ${selected.sessionId}`}
+            onClose={() => {
+              setTerminalOpen(false);
+              setTerminalId(null);
+              onStopped(selected.sessionId);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

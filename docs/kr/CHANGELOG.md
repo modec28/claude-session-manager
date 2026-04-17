@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3.0] - 2026-04-17
+
+### 추가
+- 내장 터미널 (xterm.js + PTY): 앱 안에서 Claude 세션 실행
+- 세션 뷰 Terminal 버튼: `claude --resume`을 하단 분할 패널에서 실행
+- iTerm2 버튼: 외부 터미널 열기 옵션 유지
+- 새 세션 모달: 세션 이름 입력 후 터미널 열기
+- Cmd+` 터미널 토글 (VS Code 스타일)
+- PTY resize 지원: 패널 크기에 맞춰 터미널 자동 조정
+- 바이너리 데이터 스트리밍: PTY → xterm.js 원시 바이트 전송 (UTF-8 손상 방지)
+- Shift+Enter 멀티라인 입력
+- Close 버튼 (빨간색, 눈에 잘 보이게)
+- 버디 username 수동 오버라이드: 아바타 클릭으로 GitHub username 변경
+- iTerm2 환경 격리: PTY에서 `ITERM_SESSION_ID`/`TERM_PROGRAM` 제거하여 외부 터미널 분할 방지
+
+### 변경
+- 새 세션 버튼이 iTerm2 대신 내장 터미널 실행
+- 터미널 닫으면 Running 뱃지 자동 해제
+
 ## [0.2.0] - 2026-04-17
 
 ### 추가
