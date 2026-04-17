@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { refreshBuddy, type BuddyState } from "../../api";
+import { invoke } from "@tauri-apps/api/core";
 
 const XP_PER_LEVEL = 100;
 
@@ -9,10 +10,31 @@ interface BuddyWidgetProps {
 
 export default function BuddyWidget({ refreshKey }: BuddyWidgetProps) {
   const [buddy, setBuddy] = useState<BuddyState | null>(null);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const usernameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     refreshBuddy().then(setBuddy).catch(console.error);
   }, [refreshKey]);
+
+  const handleUsernameSubmit = async () => {
+    const value = usernameInputRef.current?.value.trim() ?? "";
+    if (value) {
+      await invoke("set_buddy_username", { username: value }).catch(console.error);
+      refreshBuddy().then(setBuddy).catch(console.error);
+    }
+    setEditingUsername(false);
+  };
+
+  const handleStartEdit = () => {
+    setEditingUsername(true);
+    setTimeout(() => {
+      if (usernameInputRef.current) {
+        usernameInputRef.current.value = buddy?.githubUsername ?? "";
+        usernameInputRef.current.focus();
+      }
+    }, 0);
+  };
 
   if (!buddy) return null;
 
@@ -27,28 +49,60 @@ export default function BuddyWidget({ refreshKey }: BuddyWidgetProps) {
         {buddy.avatarUrl ? (
           <img
             src={buddy.avatarUrl}
-            className="w-10 h-10 rounded-full shrink-0"
+            onClick={handleStartEdit}
+            className="w-10 h-10 rounded-full shrink-0 cursor-pointer hover:opacity-80"
             style={{ border: "2px solid var(--border-color)" }}
+            title="Click to change username"
           />
         ) : (
           <div
-            className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm"
+            onClick={handleStartEdit}
+            className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm cursor-pointer hover:opacity-80"
             style={{
               background: "var(--bg-surface)",
               color: "var(--text-muted)",
             }}
+            title="Click to set username"
           >
             ?
           </div>
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
-            <span
-              className="text-[10px] font-bold truncate"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Lv.{buddy.level} {buddy.githubUsername ?? "Unknown"}
-            </span>
+            {editingUsername ? (
+              <div className="flex items-center gap-1">
+                <input
+                  ref={usernameInputRef}
+                  defaultValue={buddy.githubUsername ?? ""}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.key === "Enter") handleUsernameSubmit();
+                    else if (event.key === "Escape") setEditingUsername(false);
+                  }}
+                  placeholder="GitHub username"
+                  className="text-[10px] px-1 py-0.5 rounded outline-none w-20"
+                  style={{
+                    background: "var(--bg-primary)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--accent-blue)",
+                  }}
+                />
+                <button
+                  onClick={handleUsernameSubmit}
+                  className="text-[9px] px-1 rounded"
+                  style={{ background: "var(--accent-blue)", color: "var(--bg-primary)" }}
+                >
+                  OK
+                </button>
+              </div>
+            ) : (
+              <span
+                className="text-[10px] font-bold truncate"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Lv.{buddy.level} {buddy.githubUsername ?? "Unknown"}
+              </span>
+            )}
           </div>
           <div
             className="mt-1 h-1.5 rounded-full overflow-hidden"

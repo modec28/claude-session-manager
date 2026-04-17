@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SelectedSession } from "./types";
 import {
   fetchCustomTitles,
@@ -10,6 +10,7 @@ import Sidebar from "./components/sidebar/Sidebar";
 import SessionView from "./components/session/SessionView";
 import ArchiveView from "./components/archive/ArchiveView";
 import HistoryView from "./components/history/HistoryView";
+import TerminalPanel from "./components/terminal/TerminalPanel";
 
 type AppTab = "sessions" | "archive" | "history";
 
@@ -30,6 +31,11 @@ export default function App() {
   const [runningSessions, setRunningSessions] = useState<Set<string>>(new Set());
   const [archiveJobs, setArchiveJobs] = useState<Record<string, ArchiveJob>>({});
   const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [standaloneTerminal, setStandaloneTerminal] = useState<{
+    terminalId: string;
+    cwd: string;
+    command: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchCustomTitles().then(setCustomTitles).catch(console.error);
@@ -70,8 +76,31 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleGlobalKeys);
   }, []);
 
+  const [newSessionModal, setNewSessionModal] = useState<{ cwd: string } | null>(null);
+
+  const handleNewTerminalRequest = useCallback((cwd: string) => {
+    setNewSessionModal({ cwd });
+  }, []);
+
+  const handleNewTerminalConfirm = useCallback((cwd: string, name: string) => {
+    const terminalId = `new-term-${Date.now()}`;
+    const nameFlag = name ? ` --name "${name}"` : "";
+    setStandaloneTerminal({ terminalId, cwd, command: `claude${nameFlag}` });
+    setSelected(null);
+    setActiveTab("sessions");
+    setNewSessionModal(null);
+  }, []);
+
   const markSessionRunning = useCallback((sessionId: string) => {
     setRunningSessions((prev) => new Set([...prev, sessionId]));
+  }, []);
+
+  const markSessionStopped = useCallback((sessionId: string) => {
+    setRunningSessions((prev) => {
+      const next = new Set(prev);
+      next.delete(sessionId);
+      return next;
+    });
   }, []);
 
 
@@ -126,7 +155,8 @@ export default function App() {
       <div style={{ display: sidebarVisible ? "flex" : "none" }}>
         <Sidebar
           selected={selected}
-          onSelect={setSelected}
+          onSelect={(session) => { setSelected(session); setStandaloneTerminal(null); }}
+          onNewTerminal={handleNewTerminalRequest}
           customTitles={customTitles}
           refreshKey={refreshKey}
           runningSessions={runningSessions}
@@ -170,6 +200,7 @@ export default function App() {
             onClick={() => setActiveTab("history")}
           />
           <ArchiveStatus jobs={archiveJobs} />
+          <div className="flex-1" />
           <HelpTooltip />
         </nav>
         <div className="flex-1 min-h-0">
@@ -182,7 +213,15 @@ export default function App() {
                 onSessionDeleted={handleSessionDeleted}
                 onArchive={handleArchive}
                 onResumed={markSessionRunning}
+                onStopped={markSessionStopped}
                 archiveJob={archiveJobs[selected.sessionId] ?? null}
+              />
+            ) : standaloneTerminal ? (
+              <TerminalPanel
+                terminalId={standaloneTerminal.terminalId}
+                cwd={standaloneTerminal.cwd}
+                command={standaloneTerminal.command}
+                onClose={() => setStandaloneTerminal(null)}
               />
             ) : (
               <div
@@ -204,6 +243,13 @@ export default function App() {
           )}
         </div>
       </div>
+      {newSessionModal && (
+        <NewSessionModal
+          cwd={newSessionModal.cwd}
+          onConfirm={handleNewTerminalConfirm}
+          onCancel={() => setNewSessionModal(null)}
+        />
+      )}
     </div>
   );
 }
@@ -283,10 +329,10 @@ function HelpTooltip() {
       <button
         onMouseEnter={() => setVisible(true)}
         onMouseLeave={() => setVisible(false)}
-        className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-opacity hover:opacity-80"
         style={{
-          background: "var(--bg-surface)",
-          color: "var(--text-muted)",
+          background: "var(--accent-blue)",
+          color: "var(--bg-primary)",
         }}
       >
         ?
@@ -308,6 +354,8 @@ function HelpTooltip() {
               <tr><td style={{ color: "var(--accent-blue)" }}>Tab / Shift+Tab</td><td>Switch tabs</td></tr>
               <tr><td style={{ color: "var(--accent-blue)" }}>Cmd+B</td><td>Toggle sidebar</td></tr>
               <tr><td style={{ color: "var(--accent-blue)" }}>Cmd+F</td><td>Search (Archive tab)</td></tr>
+              <tr><td colSpan={2} className="pt-2 font-bold" style={{ color: "var(--text-primary)" }}>Terminal</td></tr>
+              <tr><td style={{ color: "var(--accent-green)" }}>Cmd+`</td><td>Toggle terminal</td></tr>
               <tr><td colSpan={2} className="pt-2 font-bold" style={{ color: "var(--text-primary)" }}>Session View</td></tr>
               <tr><td style={{ color: "var(--accent-green)" }}>A / ㅁ</td><td>Archive</td></tr>
               <tr><td style={{ color: "var(--accent-red)" }}>D / ㅇ</td><td>Delete</td></tr>
@@ -321,6 +369,94 @@ function HelpTooltip() {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function NewSessionModal({
+  cwd,
+  onConfirm,
+  onCancel,
+}: {
+  cwd: string;
+  onConfirm: (cwd: string, name: string) => void;
+  onCancel: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleSubmit = () => {
+    onConfirm(cwd, inputRef.current?.value.trim() ?? "");
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter") handleSubmit();
+    else if (event.key === "Escape") onCancel();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center z-50"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onCancel}
+    >
+      <div
+        className="rounded-lg p-4 w-80"
+        style={{
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border-color)",
+        }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div
+          className="text-xs font-bold mb-3"
+          style={{ color: "var(--text-primary)" }}
+        >
+          New Session
+        </div>
+        <div className="text-[10px] mb-1" style={{ color: "var(--text-muted)" }}>
+          Session Name (optional)
+        </div>
+        <input
+          ref={inputRef}
+          placeholder="e.g. feature/login-page"
+          onKeyDown={handleKeyDown}
+          className="w-full px-2 py-1.5 rounded text-xs outline-none mb-3"
+          style={{
+            background: "var(--bg-surface)",
+            color: "var(--text-primary)",
+            border: "1px solid var(--border-color)",
+          }}
+        />
+        <div className="text-[10px] mb-3" style={{ color: "var(--text-muted)" }}>
+          Working directory: {cwd}
+        </div>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1 rounded text-xs transition-opacity hover:opacity-80"
+            style={{
+              background: "var(--bg-surface)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="px-3 py-1 rounded text-xs font-medium transition-opacity hover:opacity-80"
+            style={{
+              background: "var(--accent-green)",
+              color: "var(--bg-primary)",
+            }}
+          >
+            Open Terminal
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

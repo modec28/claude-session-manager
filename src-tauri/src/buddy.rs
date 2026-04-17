@@ -255,3 +255,10 @@ pub fn refresh_buddy() -> Result<BuddyState, String> {
     save_buddy(&state)?;
     Ok(state)
 }
+
+pub fn set_username(username: &str) -> Result<(), String> {
+    let mut state = load_buddy()?;
+    state.github_username = Some(username.to_string());
+    state.avatar_url = Some(format!("https://github.com/{username}.png?size=80"));
+    save_buddy(&state)
+}

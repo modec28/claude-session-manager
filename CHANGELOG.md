@@ -2,6 +2,25 @@
 
 [한국어](docs/kr/CHANGELOG.md)
 
+## [0.3.0] - 2026-04-17
+
+### Added
+- Embedded terminal (xterm.js + PTY): run Claude sessions inside the app
+- Terminal button in session view: opens Claude `--resume` in split panel
+- iTerm2 button retained as external terminal option
+- New session modal: enter session name before opening terminal
+- Cmd+` to toggle terminal panel (VS Code style)
+- PTY resize support: terminal size syncs with panel resize
+- Binary data streaming: raw bytes from PTY to xterm.js (no UTF-8 corruption)
+- Shift+Enter for multiline input in terminal
+- Close button (red, visible) with Cmd+` shortcut hint
+- Buddy username manual override: click avatar to change GitHub username
+- iTerm2 environment isolation: `ITERM_SESSION_ID`/`TERM_PROGRAM` removed from PTY env to prevent external terminal hijacking
+
+### Changed
+- New session button opens embedded terminal instead of iTerm2
+- Terminal stops Running badge on close
+
 ## [0.2.0] - 2026-04-17
 
 ### Added

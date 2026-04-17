@@ -3,6 +3,7 @@ mod buddy;
 mod iterm;
 mod models;
 mod session;
+mod terminal;
 mod titles;
 
 use archive::ArchiveEntry;
@@ -75,6 +76,38 @@ fn set_session_title(session_id: String, title: String) -> Result<(), String> {
 #[tauri::command]
 fn refresh_buddy() -> Result<BuddyState, String> {
     buddy::refresh_buddy()
+}
+
+#[tauri::command]
+fn set_buddy_username(username: String) -> Result<(), String> {
+    buddy::set_username(&username)
+}
+
+#[tauri::command]
+fn spawn_terminal(
+    app_handle: tauri::AppHandle,
+    terminal_id: String,
+    cwd: String,
+    command: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    terminal::spawn_terminal(app_handle, terminal_id, cwd, command, cols, rows)
+}
+
+#[tauri::command]
+fn write_terminal(terminal_id: String, data: String) -> Result<(), String> {
+    terminal::write_to_terminal(&terminal_id, &data)
+}
+
+#[tauri::command]
+fn resize_terminal(terminal_id: String, cols: u16, rows: u16) -> Result<(), String> {
+    terminal::resize_terminal(&terminal_id, cols, rows)
+}
+
+#[tauri::command]
+fn close_terminal(terminal_id: String) -> Result<(), String> {
+    terminal::close_terminal(&terminal_id)
 }
 
 #[tauri::command]
@@ -399,11 +432,16 @@ pub fn run() {
             get_custom_titles,
             set_session_title,
             refresh_buddy,
+            set_buddy_username,
             open_archives_in_finder,
             session_file_size,
             archive_and_delete,
             list_archives,
             delete_archive,
+            spawn_terminal,
+            write_terminal,
+            resize_terminal,
+            close_terminal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
