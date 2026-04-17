@@ -81,20 +81,52 @@ export default function Sidebar({
     [],
   );
 
+  useEffect(() => {
+    if (!searchQuery) return;
+    for (const project of projects) {
+      if (!projectSessions[project.dirName]) {
+        fetchSessions(project.dirName)
+          .then((sessions) =>
+            setProjectSessions((prev) => ({ ...prev, [project.dirName]: sessions })),
+          )
+          .catch(console.error);
+      }
+    }
+  }, [searchQuery, projects]);
+
+  const query = searchQuery.toLowerCase();
+
   const filtered = searchQuery
-    ? projects.filter((project) =>
-        project.displayPath.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
+    ? projects.filter((project) => {
+        if (project.displayPath.toLowerCase().includes(query)) return true;
+        const sessions = projectSessions[project.dirName] ?? [];
+        return sessions.some(
+          (session) =>
+            session.sessionId.toLowerCase().includes(query) ||
+            session.title.toLowerCase().includes(query) ||
+            (customTitles[session.sessionId] ?? "").toLowerCase().includes(query),
+        );
+      })
     : projects;
 
   const flatItems: FlatItem[] = [];
   for (const project of filtered) {
     flatItems.push({ type: "project", projectDirName: project.dirName });
-    if (expandedProjects.has(project.dirName)) {
+    const isExpanded = expandedProjects.has(project.dirName) || !!searchQuery;
+    if (isExpanded) {
       const sessions = projectSessions[project.dirName] ?? [];
-      const visible = showArchived
+      let visible = showArchived
         ? sessions
         : sessions.filter((session) => !session.archived);
+      if (searchQuery) {
+        visible = visible.filter(
+          (session) =>
+            session.sessionId.toLowerCase().includes(query) ||
+            session.title.toLowerCase().includes(query) ||
+            (customTitles[session.sessionId] ?? "").toLowerCase().includes(query) ||
+            project.displayPath.toLowerCase().includes(query),
+        );
+      }
       for (const session of visible) {
         flatItems.push({
           type: "session",
@@ -194,6 +226,7 @@ export default function Sidebar({
           </button>
         </div>
         <input
+          id="sidebar-search"
           type="text"
           placeholder="Search projects..."
           value={searchQuery}
@@ -271,7 +304,7 @@ export default function Sidebar({
                   >
                     &#9654;
                   </span>
-                  <span className="truncate flex-1 font-medium">
+                  <span className="truncate flex-1 font-medium" title={project.displayPath}>
                     {project.displayPath}
                   </span>
                   <span
@@ -323,6 +356,7 @@ export default function Sidebar({
               >
                 <span
                   className="text-xs truncate w-full"
+                  title={displayTitle}
                   style={{
                     color: isFocused || isSelected
                       ? "var(--text-primary)"
