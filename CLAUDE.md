@@ -39,6 +39,12 @@ Tauri command 로 들어오는 모든 경로 컴포넌트는 `session::validate_
 ### 터미널 상태는 App 레벨에 둘 것 (v0.4.2)
 세션 뷰에 로컬 state 로 터미널을 가지면 세션 전환시 SessionView 언마운트 → TerminalPanel cleanup → PTY 종료로 `claude` 프로세스가 죽음. 터미널 상태는 반드시 `App.tsx` 의 `sessionTerminals` 맵에 둘 것. 모든 터미널은 persistent pool 에 마운트되고 CSS display 로만 활성 세션 것 표시.
 
+### Shift+Enter 는 backslash+CR (v0.4.3)
+Claude Code TUI 에 Shift+Enter 개행을 보내려면 `\x1b\r` (Option+Enter), modifyOtherKeys `\x1b[27;2;13~` 전부 안 먹음 (terminal-setup 으로 매핑된 환경에서만 동작). 대신 `\\\r` (backslash + CR) 로 보내면 Claude 가 line continuation 으로 해석해서 모든 환경에서 동작하고 렌더링도 깨끗함. `TerminalPanel.tsx::attachCustomKeyEventHandler` 참고.
+
+### 앱 종료시 PTY graceful shutdown (v0.4.3)
+PTY 자식을 그냥 두면 부모 사망시 orphan 으로 남을 수 있음. `terminal.rs::shutdown_all_terminals` 가 Tauri `WindowEvent::CloseRequested` 에서 호출되어 writer/master drop → SIGHUP → 500ms 대기 → SIGKILL 순으로 정리. 새 터미널 기능 추가할 때 `PtySession.child: Box<dyn Child + Send + Sync>` 에 자식 핸들 유지 필수.
+
 ## 버전 올릴 때 수정할 3개 파일
 
 1. `package.json` `version`

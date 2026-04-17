@@ -437,6 +437,11 @@ fn delete_archive(filename: String) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .on_window_event(|_window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                terminal::shutdown_all_terminals();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             list_projects,
             list_sessions,

@@ -1,16 +1,19 @@
-use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
+use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 const DEFAULT_COLS: u16 = 80;
 const DEFAULT_ROWS: u16 = 24;
+const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(500);
 
 struct PtySession {
     writer: Box<dyn Write + Send>,
     master: Box<dyn MasterPty + Send>,
+    child: Box<dyn Child + Send + Sync>,
 }
 
 lazy_static::lazy_static! {
@@ -53,7 +56,7 @@ pub fn spawn_terminal(
     cmd.env("TERM_PROGRAM", "claude-session-manager");
     cmd.env("TERM", "xterm-256color");
 
-    let _child = pty_pair
+    let child = pty_pair
         .slave
         .spawn_command(cmd)
         .map_err(|err| format!("Failed to spawn command: {err}"))?;
@@ -79,6 +82,7 @@ pub fn spawn_terminal(
             PtySession {
                 writer,
                 master: pty_pair.master,
+                child,
             },
         );
     }
@@ -155,10 +159,44 @@ pub fn resize_terminal(terminal_id: &str, cols: u16, rows: u16) -> Result<(), St
 }
 
 pub fn close_terminal(terminal_id: &str) -> Result<(), String> {
-    let mut sessions = PTY_SESSIONS
-        .lock()
-        .map_err(|err| format!("Lock error: {err}"))?;
+    let session = {
+        let mut sessions = PTY_SESSIONS
+            .lock()
+            .map_err(|err| format!("Lock error: {err}"))?;
+        sessions.remove(terminal_id)
+    };
 
-    sessions.remove(terminal_id);
+    if let Some(session) = session {
+        graceful_kill(session);
+    }
     Ok(())
+}
+
+pub fn shutdown_all_terminals() {
+    let drained: Vec<PtySession> = match PTY_SESSIONS.lock() {
+        Ok(mut guard) => guard.drain().map(|(_, session)| session).collect(),
+        Err(_) => return,
+    };
+
+    for session in drained {
+        graceful_kill(session);
+    }
+}
+
+fn graceful_kill(mut session: PtySession) {
+    drop(session.writer);
+    drop(session.master);
+
+    let deadline = Instant::now() + GRACEFUL_SHUTDOWN_TIMEOUT;
+    loop {
+        match session.child.try_wait() {
+            Ok(Some(_)) => return,
+            Ok(None) if Instant::now() >= deadline => break,
+            Ok(None) => thread::sleep(Duration::from_millis(25)),
+            Err(_) => break,
+        }
+    }
+
+    let _ = session.child.kill();
+    let _ = session.child.wait();
 }

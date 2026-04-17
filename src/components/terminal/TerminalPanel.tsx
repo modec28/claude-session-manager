@@ -70,7 +70,9 @@ export default function TerminalPanel({
 
     terminal.attachCustomKeyEventHandler((event) => {
       if (event.type === "keydown" && event.key === "Enter" && event.shiftKey) {
-        invoke("write_terminal", { terminalId, data: "\n" }).catch(console.error);
+        event.preventDefault();
+        event.stopPropagation();
+        invoke("write_terminal", { terminalId, data: "\\\r" }).catch(console.error);
         return false;
       }
       return true;

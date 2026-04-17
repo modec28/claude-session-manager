@@ -2,6 +2,14 @@
 
 [한국어](docs/kr/CHANGELOG.md)
 
+## [0.4.3] - 2026-04-17
+
+### Fixed
+- Shift+Enter in terminal submitted the prompt instead of inserting a newline. The earlier `\n` and `\x1b\r` / modifyOtherKeys sequences weren't recognized by Claude Code without specific terminal setup. Now sends backslash+CR (`\\\r`) which Claude Code handles as line continuation in any terminal, and renders cleanly (no visible backslash).
+
+### Added
+- Graceful PTY shutdown on app quit. Tauri `WindowEvent::CloseRequested` now drains all active PTY sessions: drop writer/master to send SIGHUP, wait up to 500ms for exit, then SIGKILL if needed. No more orphan `claude` processes after quitting the app.
+
 ## [0.4.2] - 2026-04-17
 
 ### Fixed

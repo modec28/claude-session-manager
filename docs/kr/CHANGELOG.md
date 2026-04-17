@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3] - 2026-04-17
+
+### 수정
+- 터미널에서 Shift+Enter 가 개행 대신 프롬프트를 제출하던 버그 — 기존 `\n` 및 `\x1b\r`, modifyOtherKeys 시퀀스는 Claude Code 가 터미널 세팅 없이는 인식 못 함. backslash+CR (`\\\r`) 로 바꿔 line continuation 으로 처리, 어떤 터미널에서도 동작. 렌더링도 백슬래시 안 보이고 깔끔.
+
+### 추가
+- 앱 종료시 PTY graceful shutdown. Tauri `WindowEvent::CloseRequested` 에서 활성 PTY 세션 전부 정리: writer/master drop 해서 SIGHUP 보내고 500ms 대기, 안 죽으면 SIGKILL. 앱 꺼도 좀비 `claude` 프로세스 안 남음.
+
 ## [0.4.2] - 2026-04-17
 
 ### 수정
