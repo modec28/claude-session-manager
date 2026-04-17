@@ -1,3 +1,19 @@
+# v0.4.3
+
+## Shift+Enter 개행 + 앱 종료시 PTY 정리
+
+**Shift+Enter** — 터미널에서 Shift+Enter 누르면 프롬프트 제출 대신 개행되도록 수정했습니다. 이전엔 `\n`, `\x1b\r`, modifyOtherKeys 시퀀스 전부 안 먹었는데 backslash+CR (`\\\r`) 로 보내니 Claude Code 가 line continuation 으로 처리해서 어떤 터미널 환경에서도 동작합니다. 백슬래시도 안 보이고 깔끔하게 줄바꿈 됩니다.
+
+**Graceful shutdown** — 앱 종료 (Cmd+Q, Dock 우클릭 Quit 등) 시 실행중이던 앱 내장 터미널의 `claude` 프로세스를 정리합니다. 이전엔 앱만 꺼지고 PTY 자식 프로세스가 좀비로 남을 수 있었는데, 이제 SIGHUP 보내고 500ms 대기 후 안 죽으면 SIGKILL 로 확실히 정리합니다.
+
+**Fixed**
+- Shift+Enter 프롬프트 제출 버그 (backslash continuation 방식으로 해결)
+
+**Added**
+- 앱 종료시 PTY graceful shutdown (SIGHUP → 500ms → SIGKILL)
+
+---
+
 # v0.4.2
 
 ## 터미널 세션간 유지 + 버전 감지
