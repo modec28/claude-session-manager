@@ -2,6 +2,7 @@ export interface ProjectInfo {
   dirName: string;
   displayPath: string;
   sessionCount: number;
+  archivedCount: number;
 }
 
 export interface SessionInfo {

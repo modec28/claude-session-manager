@@ -11,6 +11,8 @@ use crate::models::{
 const CLAUDE_PROJECTS_DIR: &str = ".claude/projects";
 const TITLE_MAX_CHARS: usize = 57;
 const SAFE_NAME_PATTERN: &str = "^[a-zA-Z0-9._-]+$";
+const EMPTY_SESSION_THRESHOLD: usize = 5;
+const SYSTEM_SESSION_MARKER: &str = "<local-command-caveat>";
 
 pub fn validate_path_input(name: &str) -> Result<(), String> {
     validate_path_component(name)
@@ -79,6 +81,7 @@ fn dir_name_to_display_path(dir_name: &str) -> String {
 pub fn list_projects() -> Result<Vec<ProjectInfo>, String> {
     let base = projects_base_path()?;
     let entries = fs::read_dir(&base).map_err(|err| format!("Failed to read projects dir: {err}"))?;
+    let archived_ids = load_archived_session_ids();
 
     let mut projects: Vec<ProjectInfo> = Vec::new();
 
@@ -89,17 +92,23 @@ pub fn list_projects() -> Result<Vec<ProjectInfo>, String> {
         }
 
         let dir_name = entry.file_name().to_string_lossy().to_string();
-        let session_count = fs::read_dir(&path)
-            .map(|rd| {
-                rd.flatten()
-                    .filter(|e| {
-                        e.path()
-                            .extension()
-                            .is_some_and(|ext| ext == "jsonl")
-                    })
-                    .count()
-            })
-            .unwrap_or(0);
+        let mut session_count = 0usize;
+        let mut archived_count = 0usize;
+
+        if let Ok(rd) = fs::read_dir(&path) {
+            for file_entry in rd.flatten() {
+                let file_path = file_entry.path();
+                if file_path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
+                    continue;
+                }
+                session_count += 1;
+                if let Some(stem) = file_path.file_stem() {
+                    if archived_ids.contains(&stem.to_string_lossy().to_string()) {
+                        archived_count += 1;
+                    }
+                }
+            }
+        }
 
         if session_count == 0 {
             continue;
@@ -109,6 +118,7 @@ pub fn list_projects() -> Result<Vec<ProjectInfo>, String> {
             display_path: dir_name_to_display_path(&dir_name),
             dir_name,
             session_count,
+            archived_count,
         });
     }
 
@@ -146,15 +156,20 @@ pub fn list_sessions(project_dir_name: &str) -> Result<Vec<SessionInfo>, String>
         let archived = archived_ids.contains(&session_id);
 
         match extract_session_metadata(&path) {
-            Ok(meta) => sessions.push(SessionInfo {
-                session_id,
-                archived,
-                title: meta.title,
-                timestamp: meta.timestamp,
-                message_count: meta.message_count,
-                cwd: meta.cwd,
-                model: meta.model,
-            }),
+            Ok(meta) => {
+                if meta.message_count <= EMPTY_SESSION_THRESHOLD {
+                    continue;
+                }
+                sessions.push(SessionInfo {
+                    session_id,
+                    archived,
+                    title: meta.title,
+                    timestamp: meta.timestamp,
+                    message_count: meta.message_count,
+                    cwd: meta.cwd,
+                    model: meta.model,
+                })
+            }
             Err(_) => continue,
         }
     }
@@ -285,6 +300,19 @@ fn extract_session_metadata(path: &PathBuf) -> Result<SessionMetadata, String> {
     })
 }
 
+const SYSTEM_TEXT_PREFIXES: &[&str] = &[
+    "<local-command",
+    "<teammate-message",
+    "<command-name>",
+    "<local-command-stdout>",
+];
+
+fn is_system_text(text: &str) -> bool {
+    SYSTEM_TEXT_PREFIXES
+        .iter()
+        .any(|prefix| text.trim_start().starts_with(prefix))
+}
+
 fn extract_first_user_text(path: &PathBuf) -> String {
     let file = match fs::File::open(path) {
         Ok(f) => f,
@@ -304,7 +332,10 @@ fn extract_first_user_text(path: &PathBuf) -> String {
 
         if let Some(msg) = &entry.message {
             if let Some(content) = &msg.content {
-                return text_from_content(content);
+                let text = text_from_content(content);
+                if !text.is_empty() && !is_system_text(&text) {
+                    return text;
+                }
             }
         }
     }

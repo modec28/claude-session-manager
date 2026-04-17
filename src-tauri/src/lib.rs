@@ -12,7 +12,6 @@ use std::collections::HashMap;
 use std::process::Command;
 
 const UUID_LENGTH: usize = 36;
-const RUNNING_SESSION_THRESHOLD_SECS: u64 = 3600;
 const TIMESTAMP_PREFIX_LENGTH: usize = 15;
 
 #[tauri::command]
@@ -103,64 +102,6 @@ fn session_file_size(project_dir_name: String, session_id: String) -> Result<u64
     Ok(meta.len() / 1024)
 }
 
-#[tauri::command]
-fn running_sessions() -> Result<Vec<String>, String> {
-    let output = Command::new("ps")
-        .args(["aux"])
-        .output()
-        .map_err(|err| format!("Failed to run ps: {err}"))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut session_ids: Vec<String> = Vec::new();
-    for line in stdout.lines() {
-        for flag in ["--resume ", "-r ", "--session-id "] {
-            if let Some(pos) = line.find(flag) {
-                let after = &line[pos + flag.len()..];
-                let id = after.split_whitespace().next().unwrap_or("");
-                if id.len() >= UUID_LENGTH {
-                    session_ids.push(id.to_string());
-                }
-            }
-        }
-    }
-
-    let home = dirs::home_dir().unwrap_or_default();
-    let projects_dir = home.join(".claude/projects");
-    if let Ok(projects) = std::fs::read_dir(&projects_dir) {
-        let now = std::time::SystemTime::now();
-        let recent_threshold = std::time::Duration::from_secs(RUNNING_SESSION_THRESHOLD_SECS);
-
-        for project in projects.flatten() {
-            if !project.path().is_dir() {
-                continue;
-            }
-            if let Ok(files) = std::fs::read_dir(project.path()) {
-                for file in files.flatten() {
-                    let path = file.path();
-                    if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
-                        continue;
-                    }
-                    if let Ok(meta) = path.metadata() {
-                        if let Ok(modified) = meta.modified() {
-                            if let Ok(elapsed) = now.duration_since(modified) {
-                                if elapsed < recent_threshold {
-                                    if let Some(stem) = path.file_stem() {
-                                        let id = stem.to_string_lossy().to_string();
-                                        if !session_ids.contains(&id) {
-                                            session_ids.push(id);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(session_ids)
-}
 
 #[tauri::command]
 async fn archive_and_delete(
@@ -179,16 +120,17 @@ async fn archive_and_delete(
         .join(&project_dir_name)
         .join(format!("{session_id}.jsonl"));
     let (start_ts, end_ts) = extract_session_timerange(&session_path);
+    let session_digest = extract_session_digest(&session_path);
 
     let prompt = format!(
-        r#"Read the file ~/.claude/projects/{project_dir_name}/{session_id}.jsonl and summarize what was done in this Claude Code session.
+        r#"Below is a digest of a Claude Code session. Produce a structured overview of what was accomplished.
 
-Output ONLY a valid JSON object (no markdown, no explanation) with this structure:
+Output ONLY a valid JSON object (no markdown, no code fences, no explanation before or after) with this structure:
 {{
   "sessionId": "{session_id}",
   "startDate": "{start_ts}",
   "endDate": "{end_ts}",
-  "project": "<project name from the session's cwd>",
+  "project": "<project name from cwd>",
   "cwd": "{cwd}",
   "branch": "<git branch if mentioned, or null>",
   "issueKeys": [],
@@ -200,7 +142,10 @@ Output ONLY a valid JSON object (no markdown, no explanation) with this structur
   "tags": ["<bugfix/feature/refactor/devops/analysis>"]
 }}
 
-Be specific, not generic. Write title/summary/tasks/decisions in Korean."#
+Be specific, not generic. Write title/summary/tasks/decisions in Korean.
+
+--- SESSION DIGEST ---
+{session_digest}"#
     );
 
     let result = tokio::task::spawn_blocking(move || {
@@ -231,7 +176,8 @@ Be specific, not generic. Write title/summary/tasks/decisions in Korean."#
     let safe_project = project.chars()
         .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
         .collect::<String>();
-    let filename = format!("{ts_prefix}_{safe_project}.json");
+    let short_id = &session_id[..8.min(session_id.len())];
+    let filename = format!("{ts_prefix}_{safe_project}_{short_id}.json");
     let filepath = std::path::Path::new(&archives_dir_str).join(&filename);
 
     std::fs::write(&filepath, serde_json::to_string_pretty(&parsed).unwrap_or_default())
@@ -274,6 +220,129 @@ fn extract_session_timerange(path: &std::path::Path) -> (String, String) {
         first_ts.unwrap_or_else(|| unknown.clone()),
         last_ts.unwrap_or(unknown),
     )
+}
+
+const DIGEST_MAX_CHARS: usize = 30000;
+const USER_MESSAGE_MAX_CHARS: usize = 200;
+
+fn extract_session_digest(path: &std::path::Path) -> String {
+    use std::io::BufRead;
+    let file = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return "Unable to read session file".to_string(),
+    };
+    let reader = std::io::BufReader::new(file);
+    let mut digest = String::new();
+    let mut total_chars = 0;
+
+    for line in reader.lines().flatten() {
+        if total_chars >= DIGEST_MAX_CHARS {
+            digest.push_str("\n... (truncated)\n");
+            break;
+        }
+
+        let entry = match serde_json::from_str::<serde_json::Value>(&line) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        let entry_type = entry.get("type").and_then(|v| v.as_str()).unwrap_or("");
+
+        match entry_type {
+            "user" => {
+                let content = entry
+                    .get("message")
+                    .and_then(|m| m.get("content"))
+                    .map(|c| match c {
+                        serde_json::Value::String(s) => {
+                            if s.len() > USER_MESSAGE_MAX_CHARS {
+                                format!("{}...", &s.chars().take(USER_MESSAGE_MAX_CHARS).collect::<String>())
+                            } else {
+                                s.clone()
+                            }
+                        }
+                        serde_json::Value::Array(arr) => {
+                            arr.iter()
+                                .filter_map(|block| {
+                                    let block_type = block.get("type")?.as_str()?;
+                                    match block_type {
+                                        "text" => {
+                                            let text = block.get("text")?.as_str()?;
+                                            if text.len() > USER_MESSAGE_MAX_CHARS {
+                                                Some(format!("{}...", &text.chars().take(USER_MESSAGE_MAX_CHARS).collect::<String>()))
+                                            } else {
+                                                Some(text.to_string())
+                                            }
+                                        }
+                                        _ => None,
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        }
+                        _ => String::new(),
+                    })
+                    .unwrap_or_default();
+
+                let is_system = content.starts_with("<local-command")
+                    || content.starts_with("<command-name>");
+                if !content.is_empty() && !is_system {
+                    let entry_text = format!("[User] {content}\n");
+                    total_chars += entry_text.len();
+                    digest.push_str(&entry_text);
+                }
+            }
+            "assistant" => {
+                let content = entry
+                    .get("message")
+                    .and_then(|m| m.get("content"))
+                    .and_then(|c| c.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|block| {
+                                let block_type = block.get("type")?.as_str()?;
+                                match block_type {
+                                    "text" => {
+                                        let text = block.get("text")?.as_str()?;
+                                        if text.len() > USER_MESSAGE_MAX_CHARS {
+                                            Some(format!("[Text] {}...", &text.chars().take(USER_MESSAGE_MAX_CHARS).collect::<String>()))
+                                        } else {
+                                            Some(format!("[Text] {text}"))
+                                        }
+                                    }
+                                    "tool_use" => {
+                                        let name = block.get("name")?.as_str()?;
+                                        let input = block.get("input")?;
+                                        let file_path = input.get("file_path")
+                                            .or_else(|| input.get("path"))
+                                            .or_else(|| input.get("command"))
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("");
+                                        Some(format!("[{name}] {file_path}"))
+                                    }
+                                    _ => None,
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" | ")
+                    })
+                    .unwrap_or_default();
+
+                if !content.is_empty() {
+                    let entry_text = format!("[Assistant] {content}\n");
+                    total_chars += entry_text.len();
+                    digest.push_str(&entry_text);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if digest.is_empty() {
+        "Empty session".to_string()
+    } else {
+        digest
+    }
 }
 
 fn extract_json(text: &str) -> Option<String> {
@@ -332,7 +401,6 @@ pub fn run() {
             refresh_buddy,
             open_archives_in_finder,
             session_file_size,
-            running_sessions,
             archive_and_delete,
             list_archives,
             delete_archive,

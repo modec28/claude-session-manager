@@ -137,15 +137,11 @@ pub fn run_claude_headless(cwd: &str, prompt: &str) -> Result<String, String> {
             .to_string()
     };
 
-    let output = Command::new("/bin/zsh")
-        .arg("-l")
-        .arg("-c")
-        .arg(format!(
-            "cd {} && {} --print {}",
-            shell_escape(&effective_cwd),
-            shell_escape(&claude_path),
-            shell_escape(prompt),
-        ))
+    let output = Command::new(&claude_path)
+        .arg("--print")
+        .arg("--no-session-persistence")
+        .arg(prompt)
+        .current_dir(&effective_cwd)
         .output()
         .map_err(|err| format!("Failed to run claude: {err}"))?;
 
@@ -153,7 +149,8 @@ pub fn run_claude_headless(cwd: &str, prompt: &str) -> Result<String, String> {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(format!("Claude exited with error: {stderr}"))
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        Err(format!("Claude exited with error.\nstderr: {stderr}\nstdout: {stdout}"))
     }
 }
 

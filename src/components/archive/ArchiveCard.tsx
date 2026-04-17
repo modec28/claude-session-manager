@@ -58,6 +58,12 @@ export default function ArchiveCard({ entry, onDelete }: ArchiveCardProps) {
               {entry.title || "Untitled"}
             </span>
             <span
+              className="text-[9px] font-mono"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {entry.sessionId.slice(0, 8)}
+            </span>
+            <span
               className="text-[10px]"
               style={{ color: "var(--text-muted)" }}
             >

@@ -10,6 +10,7 @@ interface SessionViewProps {
   onTitleChange: (sessionId: string, title: string) => Promise<void>;
   onSessionDeleted: () => void;
   onArchive: (projectDirName: string, sessionId: string, cwd: string, title: string) => void;
+  onResumed: (sessionId: string) => void;
   archiveJob: ArchiveJob | null;
 }
 
@@ -19,6 +20,7 @@ export default function SessionView({
   onTitleChange,
   onSessionDeleted,
   onArchive,
+  onResumed,
   archiveJob,
 }: SessionViewProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -52,12 +54,41 @@ export default function SessionView({
     const cwd = selected.cwd || "/";
     try {
       await resumeInIterm(cwd, selected.sessionId);
+      onResumed(selected.sessionId);
     } catch (error) {
       setErrorMessage(String(error));
     }
   };
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const displayTitle = customTitle || selected.sessionId.slice(0, 8) + "...";
+  const isArchiving = archiveJob?.status === "archiving";
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (editingTitle) return;
+      const target = event.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+
+      const code = event.code;
+
+      if (code === "KeyA" && !isArchiving) {
+        event.preventDefault();
+        onArchive(selected.projectDirName, selected.sessionId, selected.cwd || "/", displayTitle);
+      } else if (code === "KeyD" && !confirmingDelete) {
+        event.preventDefault();
+        setConfirmingDelete(true);
+      } else if (code === "KeyY" && confirmingDelete) {
+        event.preventDefault();
+        handleForceDelete();
+      } else if ((event.key === "Escape" || code === "KeyN") && confirmingDelete) {
+        event.preventDefault();
+        setConfirmingDelete(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selected, confirmingDelete, editingTitle, isArchiving]);
 
   const handleDeleteClick = () => {
     setConfirmingDelete(true);
@@ -78,8 +109,6 @@ export default function SessionView({
     }
   };
 
-  const displayTitle = customTitle || selected.sessionId.slice(0, 8) + "...";
-
   const handleTitleDoubleClick = () => {
     setTitleDraft(customTitle || "");
     setEditingTitle(true);
@@ -97,8 +126,6 @@ export default function SessionView({
       setEditingTitle(false);
     }
   };
-
-  const isArchiving = archiveJob?.status === "archiving";
 
   return (
     <div className="flex flex-col h-full">

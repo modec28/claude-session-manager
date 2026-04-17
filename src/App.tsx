@@ -3,7 +3,6 @@ import type { SelectedSession } from "./types";
 import {
   fetchCustomTitles,
   setSessionTitle,
-  fetchRunningSessions,
   archiveAndDelete,
   fetchSessionFileSize,
 } from "./api";
@@ -12,8 +11,6 @@ import SessionView from "./components/session/SessionView";
 import ArchiveView from "./components/archive/ArchiveView";
 
 type AppTab = "sessions" | "archive";
-
-const RUNNING_POLL_INTERVAL_MS = 5000;
 
 export interface ArchiveJob {
   sessionId: string;
@@ -36,16 +33,10 @@ export default function App() {
     fetchCustomTitles().then(setCustomTitles).catch(console.error);
   }, []);
 
-  useEffect(() => {
-    const poll = () => {
-      fetchRunningSessions()
-        .then((ids) => setRunningSessions(new Set(ids)))
-        .catch(console.error);
-    };
-    poll();
-    const interval = setInterval(poll, RUNNING_POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+  const markSessionRunning = useCallback((sessionId: string) => {
+    setRunningSessions((prev) => new Set([...prev, sessionId]));
   }, []);
+
 
   const handleTitleChange = useCallback(
     async (sessionId: string, title: string) => {
@@ -100,7 +91,6 @@ export default function App() {
           selected={selected}
           onSelect={setSelected}
           customTitles={customTitles}
-          onTitleChange={handleTitleChange}
           refreshKey={refreshKey}
           runningSessions={runningSessions}
         />
@@ -121,7 +111,7 @@ export default function App() {
           <TabButton
             label="Archive"
             active={activeTab === "archive"}
-            onClick={() => setActiveTab("archive")}
+            onClick={() => { setActiveTab("archive"); setSelected(null); }}
           />
           <ArchiveStatus jobs={archiveJobs} />
         </nav>
@@ -134,6 +124,7 @@ export default function App() {
                 onTitleChange={handleTitleChange}
                 onSessionDeleted={handleSessionDeleted}
                 onArchive={handleArchive}
+                onResumed={markSessionRunning}
                 archiveJob={archiveJobs[selected.sessionId] ?? null}
               />
             ) : (
@@ -185,6 +176,7 @@ function TabButton({
 
 function ArchiveStatus({ jobs }: { jobs: Record<string, ArchiveJob> }) {
   const activeJobs = Object.values(jobs).filter((j) => j.status === "archiving");
+  const errorJobs = Object.values(jobs).filter((j) => j.status === "error");
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -193,27 +185,33 @@ function ArchiveStatus({ jobs }: { jobs: Record<string, ArchiveJob> }) {
     return () => clearInterval(interval);
   }, [activeJobs.length]);
 
-  if (activeJobs.length === 0) return null;
+  if (activeJobs.length === 0 && errorJobs.length === 0) return null;
 
   return (
-    <div
-      className="ml-auto mr-3 flex flex-col gap-0.5 text-[10px] px-2 py-1 rounded"
-      style={{
-        background: "rgba(250, 179, 135, 0.15)",
-        color: "var(--accent-peach)",
-      }}
-    >
+    <div className="ml-auto mr-3 flex flex-col gap-0.5 text-[10px] px-2 py-1 rounded">
       {activeJobs.map((job) => {
         const elapsed = Math.floor((Date.now() - job.startedAt) / 1000);
         const sizeLabel = job.fileSizeKb >= 1024
           ? `${(job.fileSizeKb / 1024).toFixed(1)}MB`
           : `${job.fileSizeKb}KB`;
         return (
-          <div key={job.sessionId}>
+          <div
+            key={job.sessionId}
+            style={{ color: "var(--accent-peach)" }}
+          >
             {job.title || job.sessionId.slice(0, 8)} ({sizeLabel}) {elapsed}s
           </div>
         );
       })}
+      {errorJobs.map((job) => (
+        <div
+          key={job.sessionId}
+          style={{ color: "var(--accent-red)" }}
+          title={job.error}
+        >
+          {job.title || job.sessionId.slice(0, 8)} failed
+        </div>
+      ))}
     </div>
   );
 }
