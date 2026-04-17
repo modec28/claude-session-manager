@@ -7,6 +7,7 @@
 - tmux 의존성: `--teammate-mode tmux` 제거
 - MultiTerminal 자동 감지: 팀 디렉토리 폴링, 에이전트 패널 생성 제거
 - `teams.rs` 모듈
+- 팀메이트 서브 세션 사이드바에서 필터링 (`<teammate-message>`로 시작하는 세션)
 
 ### 변경
 - Terminal 버튼: `claude --resume` 직접 실행 (tmux 래퍼 없음)
