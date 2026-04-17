@@ -2,6 +2,20 @@
 
 [한국어](docs/kr/CHANGELOG.md)
 
+## [0.4.0] - 2026-04-17
+
+### Removed
+- iTerm2 dependency: removed external terminal launch, AppleScript integration
+- tmux dependency: removed `--teammate-mode tmux` from terminal commands
+- MultiTerminal auto-detection: removed teams directory polling and agent panel spawning
+- `teams.rs` module
+
+### Changed
+- Terminal button runs `claude --resume` directly (no tmux wrapper)
+- New session runs `claude` directly (no tmux wrapper)
+- Standalone and session terminals use TerminalPanel directly (no MultiTerminal wrapper)
+- Prerequisites: only macOS + Claude Code CLI required
+
 ## [0.3.0] - 2026-04-17
 
 ### Added

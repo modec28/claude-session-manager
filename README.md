@@ -18,8 +18,7 @@ A macOS desktop app for managing Claude Code sessions (Tauri v2 + React)
 ## Prerequisites
 
 - macOS (Apple Silicon)
-- [iTerm2](https://iterm2.com/) (for session resume)
-- [Claude Code CLI](https://claude.ai/claude-code) (for archive feature)
+- [Claude Code CLI](https://claude.ai/claude-code)
 
 ## Installation
 

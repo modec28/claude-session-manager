@@ -11,12 +11,14 @@ interface TerminalPanelProps {
   cwd: string;
   command: string;
   onClose: () => void;
+  label?: string;
 }
 
 export default function TerminalPanel({
   terminalId,
   cwd,
   command,
+  label,
   onClose,
 }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -148,6 +150,14 @@ export default function TerminalPanel({
                 : "var(--accent-red)",
             }}
           />
+          {label && (
+            <span
+              className="text-[10px] font-bold px-1.5 rounded"
+              style={{ background: "var(--bg-surface)", color: "var(--accent-blue)" }}
+            >
+              {label}
+            </span>
+          )}
           <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
             {command.length > 60 ? command.slice(0, 57) + "..." : command}
           </span>
