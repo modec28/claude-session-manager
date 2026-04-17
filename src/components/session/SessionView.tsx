@@ -3,7 +3,6 @@ import { fetchSession, deleteSession } from "../../api";
 import type { ConversationMessage, SelectedSession } from "../../types";
 import type { ArchiveJob } from "../../App";
 import MessageBubble from "./MessageBubble";
-import TerminalPanel from "../terminal/TerminalPanel";
 
 interface SessionViewProps {
   selected: SelectedSession;
@@ -11,8 +10,9 @@ interface SessionViewProps {
   onTitleChange: (sessionId: string, title: string) => Promise<void>;
   onSessionDeleted: () => void;
   onArchive: (projectDirName: string, sessionId: string, cwd: string, title: string) => void;
-  onResumed: (sessionId: string) => void;
-  onStopped: (sessionId: string) => void;
+  hasTerminal: boolean;
+  onOpenTerminal: (sessionId: string, cwd: string) => void;
+  onCloseTerminal: (sessionId: string) => void;
   archiveJob: ArchiveJob | null;
 }
 
@@ -22,8 +22,9 @@ export default function SessionView({
   onTitleChange,
   onSessionDeleted,
   onArchive,
-  onResumed,
-  onStopped,
+  hasTerminal,
+  onOpenTerminal,
+  onCloseTerminal,
   archiveJob,
 }: SessionViewProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -32,14 +33,10 @@ export default function SessionView({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const [terminalOpen, setTerminalOpen] = useState(false);
-  const [terminalId, setTerminalId] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setErrorMessage(null);
-    setTerminalOpen(false);
-    setTerminalId(null);
     fetchSession(selected.projectDirName, selected.sessionId)
       .then(setMessages)
       .catch(console.error)
@@ -57,10 +54,7 @@ export default function SessionView({
     : messages.filter((msg) => !msg.isSidechain);
 
   const handleOpenTerminal = () => {
-    const newId = `term-${selected.sessionId}-${Date.now()}`;
-    setTerminalId(newId);
-    setTerminalOpen(true);
-    onResumed(selected.sessionId);
+    onOpenTerminal(selected.sessionId, selected.cwd || "/");
   };
 
 
@@ -78,9 +72,8 @@ export default function SessionView({
 
       if ((event.metaKey || event.ctrlKey) && event.key === "`") {
         event.preventDefault();
-        if (terminalOpen) {
-          setTerminalOpen(false);
-          setTerminalId(null);
+        if (hasTerminal) {
+          onCloseTerminal(selected.sessionId);
         } else {
           handleOpenTerminal();
         }
@@ -103,7 +96,7 @@ export default function SessionView({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selected, confirmingDelete, editingTitle, isArchiving]);
+  }, [selected, confirmingDelete, editingTitle, isArchiving, hasTerminal]);
 
   const handleDeleteClick = () => {
     setConfirmingDelete(true);
@@ -231,14 +224,18 @@ export default function SessionView({
             Sidechain
           </label>
           <button
-            onClick={handleOpenTerminal}
+            onClick={() =>
+              hasTerminal
+                ? onCloseTerminal(selected.sessionId)
+                : handleOpenTerminal()
+            }
             className="px-3 py-1 rounded text-xs font-medium transition-opacity hover:opacity-80"
             style={{
-              background: "var(--accent-green)",
+              background: hasTerminal ? "var(--accent-red)" : "var(--accent-green)",
               color: "var(--bg-primary)",
             }}
           >
-            Terminal
+            {hasTerminal ? "Close Terminal" : "Terminal"}
           </button>
           {isArchiving ? (
             <span
@@ -319,7 +316,7 @@ export default function SessionView({
       )}
       <div
         className="overflow-y-auto p-4 space-y-3"
-        style={{ flex: terminalOpen ? "1 1 50%" : "1 1 100%", minHeight: 0 }}
+        style={{ flex: "1 1 auto", minHeight: 0 }}
       >
         {loading ? (
           <div className="text-center py-8" style={{ color: "var(--text-muted)" }}>
@@ -335,20 +332,6 @@ export default function SessionView({
           ))
         )}
       </div>
-      {terminalOpen && terminalId && (
-        <div style={{ flex: "1 1 50%", minHeight: 0 }}>
-          <TerminalPanel
-            terminalId={terminalId}
-            cwd={selected.cwd || "/"}
-            command={`claude --resume ${selected.sessionId}`}
-            onClose={() => {
-              setTerminalOpen(false);
-              setTerminalId(null);
-              onStopped(selected.sessionId);
-            }}
-          />
-        </div>
-      )}
     </div>
   );
 }
