@@ -11,6 +11,7 @@ import SessionView from "./components/session/SessionView";
 import ArchiveView from "./components/archive/ArchiveView";
 import HistoryView from "./components/history/HistoryView";
 import TerminalPanel from "./components/terminal/TerminalPanel";
+import VersionInfo from "./components/nav/VersionInfo";
 
 type AppTab = "sessions" | "archive" | "history";
 
@@ -36,6 +37,9 @@ export default function App() {
     cwd: string;
     command: string;
   } | null>(null);
+  const [sessionTerminals, setSessionTerminals] = useState<
+    Record<string, { terminalId: string; cwd: string; command: string }>
+  >({});
 
   useEffect(() => {
     fetchCustomTitles().then(setCustomTitles).catch(console.error);
@@ -102,6 +106,37 @@ export default function App() {
       return next;
     });
   }, []);
+
+  const openSessionTerminal = useCallback(
+    (sessionId: string, cwd: string) => {
+      setSessionTerminals((prev) => {
+        if (prev[sessionId]) return prev;
+        return {
+          ...prev,
+          [sessionId]: {
+            terminalId: `term-${sessionId}-${Date.now()}`,
+            cwd: cwd || "/",
+            command: `claude --resume ${sessionId}`,
+          },
+        };
+      });
+      markSessionRunning(sessionId);
+    },
+    [markSessionRunning],
+  );
+
+  const closeSessionTerminal = useCallback(
+    (sessionId: string) => {
+      setSessionTerminals((prev) => {
+        if (!prev[sessionId]) return prev;
+        const next = { ...prev };
+        delete next[sessionId];
+        return next;
+      });
+      markSessionStopped(sessionId);
+    },
+    [markSessionStopped],
+  );
 
 
   const handleTitleChange = useCallback(
@@ -201,46 +236,93 @@ export default function App() {
           />
           <ArchiveStatus jobs={archiveJobs} />
           <div className="flex-1" />
+          <VersionInfo />
           <HelpTooltip />
         </nav>
-        <div className="flex-1 min-h-0">
-          {activeTab === "sessions" ? (
-            selected ? (
-              <SessionView
-                selected={selected}
-                customTitle={customTitles[selected.sessionId] ?? null}
-                onTitleChange={handleTitleChange}
-                onSessionDeleted={handleSessionDeleted}
-                onArchive={handleArchive}
-                onResumed={markSessionRunning}
-                onStopped={markSessionStopped}
-                archiveJob={archiveJobs[selected.sessionId] ?? null}
-              />
-            ) : standaloneTerminal ? (
-              <TerminalPanel
-                terminalId={standaloneTerminal.terminalId}
-                cwd={standaloneTerminal.cwd}
-                command={standaloneTerminal.command}
-                onClose={() => setStandaloneTerminal(null)}
-              />
-            ) : (
-              <div
-                className="flex items-center justify-center h-full"
-                style={{ color: "var(--text-muted)" }}
-              >
-                <div className="text-center">
-                  <div className="text-lg mb-2">Claude Session Manager</div>
-                  <div className="text-xs">
-                    Select a session from the sidebar
-                  </div>
+        <div className="flex-1 flex flex-col min-h-0">
+          {(() => {
+            const activeTerminal =
+              activeTab === "sessions" && selected
+                ? sessionTerminals[selected.sessionId]
+                : null;
+            const hasActiveTerminal = !!activeTerminal;
+            return (
+              <>
+                <div
+                  style={{
+                    flex: hasActiveTerminal ? "1 1 50%" : "1 1 100%",
+                    minHeight: 0,
+                  }}
+                >
+                  {activeTab === "sessions" ? (
+                    selected ? (
+                      <SessionView
+                        selected={selected}
+                        customTitle={customTitles[selected.sessionId] ?? null}
+                        onTitleChange={handleTitleChange}
+                        onSessionDeleted={handleSessionDeleted}
+                        onArchive={handleArchive}
+                        hasTerminal={!!sessionTerminals[selected.sessionId]}
+                        onOpenTerminal={openSessionTerminal}
+                        onCloseTerminal={closeSessionTerminal}
+                        archiveJob={archiveJobs[selected.sessionId] ?? null}
+                      />
+                    ) : standaloneTerminal ? (
+                      <TerminalPanel
+                        terminalId={standaloneTerminal.terminalId}
+                        cwd={standaloneTerminal.cwd}
+                        command={standaloneTerminal.command}
+                        onClose={() => setStandaloneTerminal(null)}
+                      />
+                    ) : (
+                      <div
+                        className="flex items-center justify-center h-full"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        <div className="text-center">
+                          <div className="text-lg mb-2">Claude Session Manager</div>
+                          <div className="text-xs">
+                            Select a session from the sidebar
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  ) : activeTab === "archive" ? (
+                    <ArchiveView />
+                  ) : (
+                    <HistoryView />
+                  )}
                 </div>
-              </div>
-            )
-          ) : activeTab === "archive" ? (
-            <ArchiveView />
-          ) : (
-            <HistoryView />
-          )}
+                <div
+                  style={{
+                    flex: hasActiveTerminal ? "1 1 50%" : "0 0 0",
+                    minHeight: 0,
+                    overflow: "hidden",
+                  }}
+                >
+                  {Object.entries(sessionTerminals).map(([sid, term]) => (
+                    <div
+                      key={term.terminalId}
+                      style={{
+                        height: "100%",
+                        display:
+                          activeTab === "sessions" && selected?.sessionId === sid
+                            ? "block"
+                            : "none",
+                      }}
+                    >
+                      <TerminalPanel
+                        terminalId={term.terminalId}
+                        cwd={term.cwd}
+                        command={term.command}
+                        onClose={() => closeSessionTerminal(sid)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
       {newSessionModal && (

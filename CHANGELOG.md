@@ -2,6 +2,19 @@
 
 [한국어](docs/kr/CHANGELOG.md)
 
+## [0.4.2] - 2026-04-17
+
+### Fixed
+- Terminal killed when navigating to another session and back. Now terminals persist across session navigation — PTY stays alive, Running badge accurate. State lifted from SessionView to App level; all terminals mounted in a persistent pool, visibility controlled by CSS.
+
+### Added
+- Version badge next to help icon in nav bar. Hover shows release notes fetched from GitHub, with current version marker and update notification when newer release available.
+- Update detection on launch: peach-colored badge with `→ vX.Y.Z` when newer version exists. Click `Update →` opens GitHub releases page for manual DMG download (no auto-install — requires code signing).
+
+### Changed
+- Terminal button toggles now: green "Terminal" when closed, red "Close Terminal" when open.
+- CSP updated to allow `https://api.github.com` for release metadata.
+
 ## [0.4.1] - 2026-04-17
 
 ### Fixed
