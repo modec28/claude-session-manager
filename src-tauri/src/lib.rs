@@ -12,7 +12,6 @@ use std::collections::HashMap;
 use std::process::Command;
 
 const UUID_LENGTH: usize = 36;
-const RUNNING_SESSION_THRESHOLD_SECS: u64 = 3600;
 const TIMESTAMP_PREFIX_LENGTH: usize = 15;
 
 #[tauri::command]
@@ -103,64 +102,6 @@ fn session_file_size(project_dir_name: String, session_id: String) -> Result<u64
     Ok(meta.len() / 1024)
 }
 
-#[tauri::command]
-fn running_sessions() -> Result<Vec<String>, String> {
-    let output = Command::new("ps")
-        .args(["aux"])
-        .output()
-        .map_err(|err| format!("Failed to run ps: {err}"))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut session_ids: Vec<String> = Vec::new();
-    for line in stdout.lines() {
-        for flag in ["--resume ", "-r ", "--session-id "] {
-            if let Some(pos) = line.find(flag) {
-                let after = &line[pos + flag.len()..];
-                let id = after.split_whitespace().next().unwrap_or("");
-                if id.len() >= UUID_LENGTH {
-                    session_ids.push(id.to_string());
-                }
-            }
-        }
-    }
-
-    let home = dirs::home_dir().unwrap_or_default();
-    let projects_dir = home.join(".claude/projects");
-    if let Ok(projects) = std::fs::read_dir(&projects_dir) {
-        let now = std::time::SystemTime::now();
-        let recent_threshold = std::time::Duration::from_secs(RUNNING_SESSION_THRESHOLD_SECS);
-
-        for project in projects.flatten() {
-            if !project.path().is_dir() {
-                continue;
-            }
-            if let Ok(files) = std::fs::read_dir(project.path()) {
-                for file in files.flatten() {
-                    let path = file.path();
-                    if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
-                        continue;
-                    }
-                    if let Ok(meta) = path.metadata() {
-                        if let Ok(modified) = meta.modified() {
-                            if let Ok(elapsed) = now.duration_since(modified) {
-                                if elapsed < recent_threshold {
-                                    if let Some(stem) = path.file_stem() {
-                                        let id = stem.to_string_lossy().to_string();
-                                        if !session_ids.contains(&id) {
-                                            session_ids.push(id);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(session_ids)
-}
 
 #[tauri::command]
 async fn archive_and_delete(
@@ -235,7 +176,8 @@ Be specific, not generic. Write title/summary/tasks/decisions in Korean.
     let safe_project = project.chars()
         .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
         .collect::<String>();
-    let filename = format!("{ts_prefix}_{safe_project}.json");
+    let short_id = &session_id[..8.min(session_id.len())];
+    let filename = format!("{ts_prefix}_{safe_project}_{short_id}.json");
     let filepath = std::path::Path::new(&archives_dir_str).join(&filename);
 
     std::fs::write(&filepath, serde_json::to_string_pretty(&parsed).unwrap_or_default())
@@ -342,7 +284,9 @@ fn extract_session_digest(path: &std::path::Path) -> String {
                     })
                     .unwrap_or_default();
 
-                if !content.is_empty() && !content.starts_with("<local-command") {
+                let is_system = content.starts_with("<local-command")
+                    || content.starts_with("<command-name>");
+                if !content.is_empty() && !is_system {
                     let entry_text = format!("[User] {content}\n");
                     total_chars += entry_text.len();
                     digest.push_str(&entry_text);
@@ -457,7 +401,6 @@ pub fn run() {
             refresh_buddy,
             open_archives_in_finder,
             session_file_size,
-            running_sessions,
             archive_and_delete,
             list_archives,
             delete_archive,

@@ -10,6 +10,7 @@ interface SessionViewProps {
   onTitleChange: (sessionId: string, title: string) => Promise<void>;
   onSessionDeleted: () => void;
   onArchive: (projectDirName: string, sessionId: string, cwd: string, title: string) => void;
+  onResumed: (sessionId: string) => void;
   archiveJob: ArchiveJob | null;
 }
 
@@ -19,6 +20,7 @@ export default function SessionView({
   onTitleChange,
   onSessionDeleted,
   onArchive,
+  onResumed,
   archiveJob,
 }: SessionViewProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -52,6 +54,7 @@ export default function SessionView({
     const cwd = selected.cwd || "/";
     try {
       await resumeInIterm(cwd, selected.sessionId);
+      onResumed(selected.sessionId);
     } catch (error) {
       setErrorMessage(String(error));
     }
@@ -67,16 +70,18 @@ export default function SessionView({
       const target = event.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 
-      if (event.key === "a" && !isArchiving) {
+      const code = event.code;
+
+      if (code === "KeyA" && !isArchiving) {
         event.preventDefault();
         onArchive(selected.projectDirName, selected.sessionId, selected.cwd || "/", displayTitle);
-      } else if (event.key === "d" && !confirmingDelete) {
+      } else if (code === "KeyD" && !confirmingDelete) {
         event.preventDefault();
         setConfirmingDelete(true);
-      } else if (event.key === "y" && confirmingDelete) {
+      } else if (code === "KeyY" && confirmingDelete) {
         event.preventDefault();
         handleForceDelete();
-      } else if ((event.key === "Escape" || event.key === "n") && confirmingDelete) {
+      } else if ((event.key === "Escape" || code === "KeyN") && confirmingDelete) {
         event.preventDefault();
         setConfirmingDelete(false);
       }

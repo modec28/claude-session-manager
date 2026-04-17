@@ -68,10 +68,6 @@ export async function fetchSessionFileSize(
   return invoke("session_file_size", { projectDirName, sessionId });
 }
 
-export async function fetchRunningSessions(): Promise<string[]> {
-  return invoke("running_sessions");
-}
-
 export async function fetchCustomTitles(): Promise<Record<string, string>> {
   return invoke("get_custom_titles");
 }

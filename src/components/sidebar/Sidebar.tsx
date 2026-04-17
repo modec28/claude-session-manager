@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
+const SIDEBAR_POLL_INTERVAL_MS = 10000;
 import { fetchProjects, fetchSessions, newSessionInIterm } from "../../api";
 import type { ProjectInfo, SelectedSession, SessionInfo } from "../../types";
 import BuddyWidget from "./BuddyWidget";
@@ -34,25 +36,30 @@ export default function Sidebar({
   const [focusIndex, setFocusIndex] = useState(-1);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const refreshAll = useCallback(async () => {
+    const projects = await fetchProjects().catch(() => [] as ProjectInfo[]);
+    setProjects(projects);
+
+    for (const projectDirName of expandedProjects) {
+      fetchSessions(projectDirName)
+        .then((sessions) =>
+          setProjectSessions((prev) => ({ ...prev, [projectDirName]: sessions })),
+        )
+        .catch(console.error);
+    }
+  }, [expandedProjects]);
+
   useEffect(() => {
     setLoading(true);
-    fetchProjects()
-      .then(setProjects)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [refreshKey]);
+    refreshAll().finally(() => setLoading(false));
 
-  const loadSessions = useCallback(
-    async (projectDirName: string) => {
-      try {
-        const sessions = await fetchSessions(projectDirName);
-        setProjectSessions((prev) => ({ ...prev, [projectDirName]: sessions }));
-      } catch (error) {
-        console.error(error);
-      }
-    },
-    [projectSessions],
-  );
+    const interval = setInterval(refreshAll, SIDEBAR_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    refreshAll();
+  }, [refreshKey]);
 
   const toggleProject = useCallback(
     (projectDirName: string) => {
@@ -62,23 +69,17 @@ export default function Sidebar({
           next.delete(projectDirName);
         } else {
           next.add(projectDirName);
-          loadSessions(projectDirName);
+          fetchSessions(projectDirName)
+            .then((sessions) =>
+              setProjectSessions((p) => ({ ...p, [projectDirName]: sessions })),
+            )
+            .catch(console.error);
         }
         return next;
       });
     },
-    [loadSessions],
+    [],
   );
-
-  useEffect(() => {
-    for (const projectDirName of expandedProjects) {
-      fetchSessions(projectDirName)
-        .then((sessions) =>
-          setProjectSessions((prev) => ({ ...prev, [projectDirName]: sessions })),
-        )
-        .catch(console.error);
-    }
-  }, [refreshKey]);
 
   const filtered = searchQuery
     ? projects.filter((project) =>
@@ -111,10 +112,10 @@ export default function Sidebar({
 
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setFocusIndex((prev) => Math.min(prev + 1, flatItems.length - 1));
+        setFocusIndex((prev) => prev >= flatItems.length - 1 ? 0 : prev + 1);
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
-        setFocusIndex((prev) => Math.max(prev - 1, 0));
+        setFocusIndex((prev) => prev <= 0 ? flatItems.length - 1 : prev - 1);
       } else if (event.key === "Enter" || event.key === "ArrowRight") {
         event.preventDefault();
         const item = flatItems[focusIndex];

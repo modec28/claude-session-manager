@@ -3,7 +3,6 @@ import type { SelectedSession } from "./types";
 import {
   fetchCustomTitles,
   setSessionTitle,
-  fetchRunningSessions,
   archiveAndDelete,
   fetchSessionFileSize,
 } from "./api";
@@ -12,8 +11,6 @@ import SessionView from "./components/session/SessionView";
 import ArchiveView from "./components/archive/ArchiveView";
 
 type AppTab = "sessions" | "archive";
-
-const RUNNING_POLL_INTERVAL_MS = 5000;
 
 export interface ArchiveJob {
   sessionId: string;
@@ -36,16 +33,10 @@ export default function App() {
     fetchCustomTitles().then(setCustomTitles).catch(console.error);
   }, []);
 
-  useEffect(() => {
-    const poll = () => {
-      fetchRunningSessions()
-        .then((ids) => setRunningSessions(new Set(ids)))
-        .catch(console.error);
-    };
-    poll();
-    const interval = setInterval(poll, RUNNING_POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+  const markSessionRunning = useCallback((sessionId: string) => {
+    setRunningSessions((prev) => new Set([...prev, sessionId]));
   }, []);
+
 
   const handleTitleChange = useCallback(
     async (sessionId: string, title: string) => {
@@ -120,7 +111,7 @@ export default function App() {
           <TabButton
             label="Archive"
             active={activeTab === "archive"}
-            onClick={() => setActiveTab("archive")}
+            onClick={() => { setActiveTab("archive"); setSelected(null); }}
           />
           <ArchiveStatus jobs={archiveJobs} />
         </nav>
@@ -133,6 +124,7 @@ export default function App() {
                 onTitleChange={handleTitleChange}
                 onSessionDeleted={handleSessionDeleted}
                 onArchive={handleArchive}
+                onResumed={markSessionRunning}
                 archiveJob={archiveJobs[selected.sessionId] ?? null}
               />
             ) : (

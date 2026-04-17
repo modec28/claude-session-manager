@@ -157,9 +157,7 @@ pub fn list_sessions(project_dir_name: &str) -> Result<Vec<SessionInfo>, String>
 
         match extract_session_metadata(&path) {
             Ok(meta) => {
-                if meta.message_count <= EMPTY_SESSION_THRESHOLD
-                    && meta.title.contains(SYSTEM_SESSION_MARKER)
-                {
+                if meta.message_count <= EMPTY_SESSION_THRESHOLD {
                     continue;
                 }
                 sessions.push(SessionInfo {
