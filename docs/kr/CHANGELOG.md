@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.5] - 2026-04-27
+
+### 수정
+- 내장 터미널 한글 IME 깨짐 (ESET Endpoint 가 xterm 내장 textarea 의 `compositionstart/update/end` 이벤트를 후킹해서 자모가 개별 키입력으로 떨어지던 버그). xterm 의 input 경로를 버리고 자체 `<textarea>` 로 입력 받아 PTY 로 forward 하도록 변경 (ESET 이 임의 textarea 는 안 건드림).
+- Ctrl+C 등 Ctrl+letter 가 PTY 에 안 가던 버그. ESET 영향으로 포커스가 xterm 헬퍼 textarea 로 잠깐 새는 사이 키이벤트가 우리 핸들러에 안 도착해서 발생. window-level capture 단계에서 Ctrl+letter 잡아 무조건 PTY 로 보내도록 처리.
+- Sticky drag selection: ESET 이 가끔 mouseup 을 씹어서 xterm 내부 selection state 가 "누른 채" 로 남고, 이후 마우스 이동마다 selection 이 확장되던 버그. `buttons === 0` 인 mousemove 에 throttled synthetic mouseup 을 `xterm-screen` 으로 dispatch 해서 stuck 상태 강제 해제.
+
+### 추가
+- 자체 textarea 의 특수키 수동 매핑: 화살표/Home/End/PageUp/PageDown/Delete/Tab/Escape/Backspace/Enter (Shift+Enter 는 backslash continuation 유지)
+- Cmd+C 는 xterm selection 을 `navigator.clipboard.writeText` 로 복사, Cmd+A 는 `terminal.selectAll()`
+- Release 빌드에 devtools 활성화 (`tauri = { features = ["devtools"] }`) — 이런 WebView 레벨 간섭 진단을 별도 디버그 빌드 없이 가능
+
+### 변경
+- xterm 헬퍼 textarea 는 `tabindex="-1"` 로 포커스 순서에서 제외. 자체 textarea 가 입력 단일 타겟.
+
 ## [0.4.4] - 2026-04-17
 
 ### 수정

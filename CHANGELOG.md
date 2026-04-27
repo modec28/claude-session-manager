@@ -2,6 +2,21 @@
 
 [한국어](docs/kr/CHANGELOG.md)
 
+## [0.4.5] - 2026-04-27
+
+### Fixed
+- Korean IME composition was broken in the embedded terminal because ESET Endpoint Security hooks `compositionstart/update/end` events on xterm's internal helper textarea, leaving raw jamo to be sent as individual keystrokes. Replaced xterm's input path with our own `<textarea>` (which ESET does not intercept), forwarding composed text to the PTY via `write_terminal`.
+- Ctrl+C (and other Ctrl+letter combos) failed to reach the PTY when ESET-induced focus thrash put focus back on xterm's helper textarea. Added a window-level capture-phase keydown listener that forwards Ctrl+letter to the PTY whenever focus is anywhere inside the terminal panel.
+- Sticky drag selection: occasional ESET-dropped mouseup events left xterm's selection state stuck, so subsequent mouse movement extended selection without any button held. Added a document-level `mousemove` listener that dispatches a throttled synthetic `mouseup` on `xterm-screen` whenever the mouse moves with no buttons pressed, forcing xterm out of any stuck drag state.
+
+### Added
+- Manual mappings for special keys on the new input textarea: arrow keys, Home, End, PageUp/Down, Delete, Tab, Escape, Backspace, Enter (with Shift+Enter still using backslash continuation).
+- Cmd+C copies xterm's current selection via `navigator.clipboard.writeText`. Cmd+A maps to `terminal.selectAll()`.
+- Devtools enabled in release builds (`tauri = { features = ["devtools"] }`) so future diagnosis of WebView-level interference is possible without a separate debug build.
+
+### Changed
+- xterm's internal helper textarea is set to `tabindex="-1"` to keep it out of the focus order; our own offscreen textarea is the canonical input target.
+
 ## [0.4.4] - 2026-04-17
 
 ### Fixed
