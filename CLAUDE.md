@@ -49,6 +49,16 @@ Claude Code TUI 에 Shift+Enter 개행을 보내려면 `\x1b\r` (Option+Enter), 
 ### 앱 종료시 PTY graceful shutdown (v0.4.3)
 PTY 자식을 그냥 두면 부모 사망시 orphan 으로 남을 수 있음. `terminal.rs::shutdown_all_terminals` 가 Tauri `WindowEvent::CloseRequested` 에서 호출되어 writer/master drop → SIGHUP → 500ms 대기 → SIGKILL 순으로 정리. 새 터미널 기능 추가할 때 `PtySession.child: Box<dyn Child + Send + Sync>` 에 자식 핸들 유지 필수.
 
+### ESET / 키로거 보호 AV 가 xterm 내부 textarea 를 망가뜨림 (v0.4.5)
+ESET Endpoint 같은 anti-keylogger 가 xterm 헬퍼 textarea 의 `composition*` / `mouseup` 이벤트를 후킹해서 한글 IME / Ctrl+C / 마우스 selection 이 깨짐 (단, **자체 생성한** textarea 는 안 건드림). 결과적으로 우리 입력 레이어를 자체 구현해서 우회:
+- `TerminalPanel.tsx` 의 자체 offscreen `<textarea>` 가 입력 단일 타겟. compositionstart/end 받아서 composed 결과를 PTY 로 invoke.
+- 특수키 (arrows/Home/End/Backspace/Tab/Escape/Delete/PageUp/Down) 수동 매핑.
+- Ctrl+letter 는 window-level capture 단계 keydown 리스너로 강제 forward. event.code 기반 (KeyA-KeyZ) — IME/레이아웃 영향 없음.
+- mouseup 유실로 인한 sticky drag 는 `mousemove` + `buttons === 0` 시 synthetic mouseup 을 xterm-screen 에 throttled dispatch.
+- xterm 헬퍼 textarea 는 `tabindex="-1"`.
+
+xterm 입력에 손댈 때 위 layer 를 망치지 말 것. ESET 같은 AV 환경 회귀 테스트 필요.
+
 ## 버전 올릴 때 수정할 3개 파일
 
 1. `package.json` `version`

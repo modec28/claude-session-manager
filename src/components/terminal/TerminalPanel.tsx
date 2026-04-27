@@ -14,6 +14,22 @@ interface TerminalPanelProps {
   label?: string;
 }
 
+const SPECIAL_KEY_SEQUENCES: Record<string, string> = {
+  Enter: "\r",
+  Backspace: "\x7f",
+  Tab: "\t",
+  Escape: "\x1b",
+  ArrowUp: "\x1b[A",
+  ArrowDown: "\x1b[B",
+  ArrowRight: "\x1b[C",
+  ArrowLeft: "\x1b[D",
+  Home: "\x1b[H",
+  End: "\x1b[F",
+  PageUp: "\x1b[5~",
+  PageDown: "\x1b[6~",
+  Delete: "\x1b[3~",
+};
+
 export default function TerminalPanel({
   terminalId,
   cwd,
@@ -22,8 +38,10 @@ export default function TerminalPanel({
   onClose,
 }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const isComposingRef = useRef(false);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
@@ -68,20 +86,6 @@ export default function TerminalPanel({
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    terminal.attachCustomKeyEventHandler((event) => {
-      if (event.type === "keydown" && event.key === "Enter" && event.shiftKey) {
-        event.preventDefault();
-        event.stopPropagation();
-        invoke("write_terminal", { terminalId, data: "\\\r" }).catch(console.error);
-        return false;
-      }
-      return true;
-    });
-
-    terminal.onData((data) => {
-      invoke("write_terminal", { terminalId, data }).catch(console.error);
-    });
-
     const outputUnlisten = listen<number[]>(
       `terminal-output-${terminalId}`,
       (event) => {
@@ -118,7 +122,59 @@ export default function TerminalPanel({
     });
     resizeObserver.observe(containerRef.current);
 
+    const xtermHelper = containerRef.current.querySelector<HTMLTextAreaElement>(
+      ".xterm-helper-textarea",
+    );
+    xtermHelper?.setAttribute("tabindex", "-1");
+
+    let lastSyntheticMouseUp = 0;
+    const releaseStuckDrag = (event: MouseEvent) => {
+      if (event.buttons !== 0) return;
+      const now = performance.now();
+      if (now - lastSyntheticMouseUp < 50) return;
+      lastSyntheticMouseUp = now;
+      const screen = containerRef.current?.querySelector(".xterm-screen");
+      if (!screen) return;
+      screen.dispatchEvent(
+        new MouseEvent("mouseup", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+          buttons: 0,
+          clientX: event.clientX,
+          clientY: event.clientY,
+        }),
+      );
+    };
+    document.addEventListener("mousemove", releaseStuckDrag);
+
+    const globalCtrlCapture = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || event.metaKey) return;
+      const active = document.activeElement;
+      const inPanel =
+        active === inputRef.current ||
+        !!containerRef.current?.contains(active);
+      if (!inPanel) return;
+      const code = event.code;
+      if (code.startsWith("Key") && code.length === 4) {
+        const letter = code.charCodeAt(3);
+        if (letter >= 0x41 && letter <= 0x5a) {
+          event.preventDefault();
+          event.stopPropagation();
+          invoke("write_terminal", {
+            terminalId,
+            data: String.fromCharCode(letter - 0x40),
+          }).catch(console.error);
+        }
+      }
+    };
+    window.addEventListener("keydown", globalCtrlCapture, true);
+
+    inputRef.current?.focus();
+
     return () => {
+      document.removeEventListener("mousemove", releaseStuckDrag);
+      window.removeEventListener("keydown", globalCtrlCapture, true);
       outputUnlisten.then((unlisten) => unlisten());
       exitUnlisten.then((unlisten) => unlisten());
       resizeObserver.disconnect();
@@ -126,6 +182,92 @@ export default function TerminalPanel({
       invoke("close_terminal", { terminalId }).catch(() => {});
     };
   }, [terminalId]);
+
+  const send = (data: string) => {
+    invoke("write_terminal", { terminalId, data }).catch(console.error);
+  };
+
+  const handleCompositionStart = () => {
+    isComposingRef.current = true;
+  };
+
+  const handleCompositionEnd = (
+    event: React.CompositionEvent<HTMLTextAreaElement>,
+  ) => {
+    isComposingRef.current = false;
+    if (event.data) send(event.data);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const handleInput = (event: React.FormEvent<HTMLTextAreaElement>) => {
+    if (isComposingRef.current) return;
+    const nativeEvent = event.nativeEvent as InputEvent;
+    const text = nativeEvent.data ?? "";
+    if (
+      (nativeEvent.inputType === "insertText" ||
+        nativeEvent.inputType === "insertFromPaste" ||
+        nativeEvent.inputType === "insertCompositionText") &&
+      text
+    ) {
+      send(text);
+    }
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isComposingRef.current || event.nativeEvent.isComposing) return;
+
+    const { key, ctrlKey, metaKey, shiftKey } = event;
+
+    if (metaKey) {
+      if (key === "c" || key === "C") {
+        const terminal = terminalRef.current;
+        if (terminal?.hasSelection()) {
+          event.preventDefault();
+          navigator.clipboard
+            .writeText(terminal.getSelection())
+            .catch(console.error);
+        }
+        return;
+      }
+      if (key === "a" || key === "A") {
+        event.preventDefault();
+        terminalRef.current?.selectAll();
+        return;
+      }
+      if (key === "v" || key === "V") return;
+      if (key === "`") return;
+    }
+
+    if (key === "Enter") {
+      event.preventDefault();
+      send(shiftKey ? "\\\r" : "\r");
+      return;
+    }
+
+    const mapped = SPECIAL_KEY_SEQUENCES[key];
+    if (mapped) {
+      event.preventDefault();
+      send(mapped);
+      return;
+    }
+
+    if (ctrlKey && !metaKey) {
+      const code = event.code;
+      if (code.startsWith("Key") && code.length === 4) {
+        const letter = code.charCodeAt(3);
+        if (letter >= 0x41 && letter <= 0x5a) {
+          event.preventDefault();
+          send(String.fromCharCode(letter - 0x40));
+          return;
+        }
+      }
+    }
+  };
+
+  const refocusInput = () => {
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  };
 
   return (
     <div
@@ -176,7 +318,32 @@ export default function TerminalPanel({
           Close
         </button>
       </div>
-      <div ref={containerRef} className="flex-1 min-h-0" />
+      <div className="relative flex-1 min-h-0">
+        <div ref={containerRef} className="absolute inset-0" />
+        <textarea
+          ref={inputRef}
+          aria-label="terminal input"
+          autoCapitalize="off"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
+          onInput={handleInput}
+          onKeyDown={handleKeyDown}
+          onBlur={refocusInput}
+          className="absolute inset-0 w-full h-full resize-none"
+          style={{
+            background: "transparent",
+            color: "transparent",
+            caretColor: "transparent",
+            border: "none",
+            outline: "none",
+            pointerEvents: "none",
+            padding: 0,
+          }}
+        />
+      </div>
     </div>
   );
 }

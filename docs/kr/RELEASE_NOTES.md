@@ -1,3 +1,32 @@
+# v0.4.5
+
+## ESET 키로거 우회 — IME / Ctrl+C / 드래그 selection 정상화
+
+ESET Endpoint Security 깔린 환경에서 내장 터미널의 한글 IME / Ctrl+C 인터럽트 / 마우스 selection 이 다 깨지던 문제를 한꺼번에 잡았습니다. ESET 의 anti-keylogger 모듈이 xterm 내장 textarea 의 composition / mouseup 이벤트를 후킹해서 일어나는 일.
+
+**한글 IME** — xterm 의 input 경로를 버리고 자체 `<textarea>` 로 받아 composed 결과를 PTY 로 forward. ESET 은 우리 textarea 는 안 건드림.
+
+**Ctrl+C 인터럽트** — window-level capture 단계에서 Ctrl+letter 잡아 무조건 PTY 로 보내도록 처리. 포커스가 xterm 헬퍼 textarea 로 잠깐 새도 우회됨.
+
+**드래그 stuck** — ESET 이 가끔 mouseup 을 씹어서 한 번 클릭 이후 마우스 이동마다 selection 이 계속 확장되던 현상. mouse 버튼 안 눌린 상태의 mousemove 에 synthetic mouseup 을 50ms throttle 로 xterm screen 에 dispatch 해서 stuck state 강제 해제.
+
+추가로 release 빌드에 devtools 도 활성화해서 (우클릭 → Inspect Element) 이런 외부 간섭 디버깅이 별도 빌드 없이 가능합니다.
+
+**Fixed**
+- 한글 IME 자모 분리 (자체 textarea 로 composition 받기)
+- Ctrl+letter PTY 전달 실패 (window capture)
+- Sticky drag selection (synthetic mouseup)
+
+**Added**
+- 특수키 수동 매핑 (arrows/Home/End/PageUp/Down/Delete/Tab/Esc/Backspace/Enter/Shift+Enter)
+- Cmd+C / Cmd+A 처리
+- Release 빌드 devtools
+
+**Changed**
+- xterm helper textarea `tabindex="-1"` (포커스 순서에서 제외)
+
+---
+
 # v0.4.4
 
 ## `claude not found` 버그 수정 + 테스트 강화
